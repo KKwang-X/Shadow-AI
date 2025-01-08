@@ -1,11 +1,5 @@
 # Shadow-AI
 
-Based on the structure and content of the [mllm](https://github.com/UbiquitousLearning/mllm/blob/main/README.md) README, here's an optimized version for the **Shadow-AI** project:
-
----
-
-# Shadow-AI
-
 Shadow-AI is an AI engine that integrates a **frontend controller (leveraging [GKD](https://github.com/gkd-kit/gkd))** with a **Large Language Model (LLM, primarily Claude 3.5)**. It enables users to control an Android mobile assistant to perform complex, purpose-specific operations through voice or text commands.
 
 ## Recent Updates
