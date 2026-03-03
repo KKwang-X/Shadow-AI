@@ -5,12 +5,15 @@ description: Configuration modification safety guard skill. Enforces security ch
 
 # Config Guardian - Safe Configuration Management
 
+> <strong>⚠️ Why This Skill Exists</strong><br>
+> When AI agents have `exec` permissions, a single hallucinated parameter can bring down production services. This skill was born from real pain — I once crashed my OpenClaw gateway 3 times in one night because the model suggested `--daemon`, a parameter that doesn't exist.
+
 ## Core Principles
 
 **All critical configuration modifications must follow this workflow:**
 
 1. **Validate First** — Confirm parameter exists using `--help` or documentation
-2. **Auto Backup** — Create timestamped backup before modification
+2. **Auto Backup** — Create timestamped backup before modification  
 3. **User Confirmation** — Show changes to user and get explicit approval
 4. **Post-Validation** — Verify service status after modification
 
@@ -23,64 +26,69 @@ description: Configuration modification safety guard skill. Enforces security ch
 | `/etc/nginx/nginx.conf` | Nginx Config | 🟡 Medium |
 | `~/.ssh/config` | SSH Config | 🟡 Medium |
 
-## Usage Workflow
+## Real-World Lessons Learned
 
-### Step 1: Check if Critical
-
+### Lesson 1: Never Trust Model-Generated Parameters
 ```bash
-python3 config-guardian.py --check <filepath>
+# ❌ WRONG: Model suggested this parameter
+ExecStart=/home/admin/.npm-global/bin/openclaw gateway start --daemon
+# Result: Service crashed with "unknown option '--daemon'"
+
+# ✅ CORRECT: After checking --help
+ExecStart=/home/admin/.npm-global/bin/openclaw gateway start
+# Result: Service started successfully
 ```
 
-### Step 2: Validate Parameters
-
-**OpenClaw parameter validation:**
-```bash
-openclaw gateway start --help
-# Confirm parameter exists in help text
+### Lesson 2: Always Backup Before Changes
+Without backups, one wrong edit can leave you scrambling. Config Guardian automatically creates timestamped backups:
+```
+~/.config-backups/openclaw.service.20250303_234439.bak
 ```
 
-**Systemd config validation:**
-```bash
-python3 config-guardian.py --validate-systemd <filepath>
-systemd-analyze verify <filepath>
-```
-
-### Step 3: Create Backup
-
-```bash
-python3 config-guardian.py --backup <filepath>
-```
-
-Backup location: `~/.config-backups/<filename>.<timestamp>.bak`
-
-### Step 4: Show Changes to User
-
-Must display:
-- File path being modified
-- Before/after comparison
-- Potential impact scope
-- Rollback method
-
-### Step 5: Get User Confirmation
-
-Wait for explicit user response (e.g., "confirm", "execute", "ok") before proceeding.
-
-### Step 6: Post-Validation
-
-**Systemd services:**
+### Lesson 3: Verify After Every Change
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl restart <service>
-sudo systemctl status <service> --no-pager
+sudo systemctl restart openclaw
+sudo systemctl status openclaw --no-pager  # MUST CHECK!
 ```
 
-**OpenClaw:**
+## Installation
+
 ```bash
-openclaw status
-openclaw gateway status
+# Clone the repository
+git clone https://github.com/KKwang-X/Shadow-AI.git
+cd Shadow-AI
+
+# Make executable
+chmod +x skills/config-guardian/config-guardian.py
+
+# Optional: Add to PATH
+sudo cp skills/config-guardian/config-guardian.py /usr/local/bin/
+```
+
+## Usage
+
+### Check if File is Critical
+```bash
+python3 config-guardian.py --check ~/.openclaw/openclaw.json
+# Output: Critical config: Yes
+```
+
+### Backup Config File
+```bash
+python3 config-guardian.py --backup /etc/systemd/system/myapp.service
+# Output: ✅ Backup created: ~/.config-backups/myapp.service.20250303_234439.bak
+```
+
+### Validate Systemd Config
+```bash
+python3 config-guardian.py --validate-systemd /etc/systemd/system/myapp.service
+# Output: ✅ systemd config validated
 ```
 
 ## Safety Checklist
+
+Before modifying any critical config:
 
 ```
 □ Does the parameter exist in current version? (check --help)
@@ -88,6 +96,22 @@ openclaw gateway status
 □ Have changes been shown to the user?
 □ Has explicit user confirmation been obtained?
 □ Is the service status normal after modification?
+```
+
+## Integration with OpenClaw/Codex
+
+Add this to your agent's instructions:
+
+```markdown
+## Config Safety Rules
+
+When modifying critical configuration files:
+1. Run `config-guardian.py --check <filepath>` to identify critical configs
+2. Run `config-guardian.py --backup <filepath>` before any changes
+3. For systemd: Run `config-guardian.py --validate-systemd <file>`
+4. Show user the exact changes before applying
+5. Get explicit confirmation ("confirm", "execute", "ok")
+6. Verify service status after changes
 ```
 
 ## Common Error Prevention
@@ -105,23 +129,34 @@ If issues occur after modification:
 
 ```bash
 # Restore from backup
-cp ~/.config-backups/<filename>.<timestamp>.bak <original-path>
+cp ~/.config-backups/myapp.service.20250303_234439.bak /etc/systemd/system/myapp.service
 
-# Restart service
-sudo systemctl restart <service>
+# Reload and restart
+sudo systemctl daemon-reload
+sudo systemctl restart myapp
 ```
 
-## Installation
+## Why This Matters for AI Agents
 
-```bash
-# Clone the script
-curl -O https://raw.githubusercontent.com/KKwang-X/Shadow-AI/main/skills/config-guardian/config-guardian.py
-chmod +x config-guardian.py
+AI agents with `exec` permissions can:
+- Execute arbitrary shell commands
+- Modify system configurations
+- Start/stop services
 
-# Or copy to your PATH
-sudo cp config-guardian.py /usr/local/bin/
-```
+**Without guardrails, this is dangerous.** Models can:
+- Hallucinate non-existent parameters
+- Generate syntactically incorrect configs
+- Apply changes without verification
+
+**Config Guardian adds the safety layer that should be built-in.**
 
 ## License
 
-MIT
+MIT License - See [LICENSE](../../LICENSE) for details.
+
+---
+
+<p align="center">
+  Built with ❤️ and hard-learned lessons by <a href="https://github.com/KKwang-X">KK</a>
+</p>
+
