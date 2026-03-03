@@ -48,6 +48,30 @@ python3 skills/safeconfig/safeconfig.py --check ~/.openclaw/openclaw.json
 python3 skills/safeconfig/safeconfig.py --backup /etc/systemd/system/myapp.service
 ```
 
+### QQMail Sender 🇨🇳 (国内用户推荐)
+**国内 OpenClaw 用户最便捷的邮件方案** - 无需 Gmail/Outlook，直接使用 QQ 邮箱，国内网络畅通无阻。
+
+**为什么这很重要：**
+Gmail 在国内访问困难，Outlook 偶发连接问题。QQ 邮箱是国内最稳定的 SMTP 服务，人人有号，开箱即用。
+
+**核心功能：**
+- ✅ 国内网络畅通，无需翻墙
+- ✅ QQ 号即邮箱，无需额外注册
+- ✅ 支持系统告警、日报等自动化邮件
+- ✅ 配置简单，授权码一键获取
+
+**快速开始：**
+```bash
+# 配置邮箱和授权码
+export QQMAIL_EMAIL="your-qq@qq.com"
+export QQMAIL_AUTH_CODE="your-auth-code"
+
+# 发送邮件
+python3 skills/qqmail-sender/qqmail.py "recipient@example.com" "主题" "正文"
+```
+
+**详细配置指南：** [skills/qqmail-sender/README.md](skills/qqmail-sender/README.md)
+
 ---
 
 ## 🛡️ 安全第一理念
@@ -107,6 +131,7 @@ sudo systemctl status service --no-pager  # 必须检查！
 | Skill | 描述 | 状态 |
 |-------|-------------|--------|
 | [SafeConfig](skills/safeconfig/) | 安全配置管理 | ✅ 生产就绪 |
+| [QQMail Sender](skills/qqmail-sender/) | QQ邮箱发送工具（国内推荐） | ✅ 就绪 |
 | 更多 coming... | | 🚧 开发中 |
 
 ---
