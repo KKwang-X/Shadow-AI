@@ -67,7 +67,7 @@ python3 skills/safeconfig/safeconfig.py --backup /etc/systemd/system/myapp.servi
 4. **验证** — 修改后检查服务状态
 
 ### 实际效果
-| 使用 Config Guardian 之前 | 使用 Config Guardian 之后 |
+| 使用 SafeConfig 之前 | 使用 SafeConfig 之后 |
 |------------------------|----------------------|
 | 一晚服务崩溃 3 次 | 零生产事故 |
 | `--daemon` 参数幻觉 | 所有参数都经过验证 |
