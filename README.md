@@ -29,7 +29,7 @@ This repository documents my journey building AI agent systems, with special foc
 ### Shadow-AI (Original)
 An AI engine integrating **GKD frontend controller** with **Large Language Models** for Android device automation via voice/text commands.
 
-### Config Guardian ⭐ (Featured Skill)
+### SafeConfig ⭐ (Featured Skill)
 A safety-first skill for OpenClaw/Codex that enforces strict security checks before modifying critical configurations.
 
 **Why This Matters:**
@@ -44,8 +44,8 @@ When AI agents have `exec` permissions, a single hallucinated parameter can brin
 
 **Quick Start:**
 ```bash
-python3 skills/config-guardian/config-guardian.py --check ~/.openclaw/openclaw.json
-python3 skills/config-guardian/config-guardian.py --backup /etc/systemd/system/myapp.service
+python3 skills/safeconfig/safeconfig.py --check ~/.openclaw/openclaw.json
+python3 skills/safeconfig/safeconfig.py --backup /etc/systemd/system/myapp.service
 ```
 
 ---
@@ -59,7 +59,7 @@ Modern AI agents (OpenClaw, Claude Code, etc.) can execute shell commands. This 
 - No built-in safety guardrails
 
 ### The Solution
-**Config Guardian** implements a 4-step safety workflow:
+**SafeConfig** implements a 4-step safety workflow:
 
 1. **Validate** — Check `--help` before using any parameter
 2. **Backup** — Always backup before modification
@@ -67,7 +67,7 @@ Modern AI agents (OpenClaw, Claude Code, etc.) can execute shell commands. This 
 4. **Verify** — Check service status after changes
 
 ### Real-World Impact
-| Before Config Guardian | After Config Guardian |
+| Before SafeConfig | After SafeConfig |
 |------------------------|----------------------|
 | Service crashed 3 times in one night | Zero production incidents |
 | `--daemon` parameter hallucination | All parameters validated |
@@ -106,7 +106,7 @@ sudo systemctl status service --no-pager  # Must check!
 
 | Skill | Description | Status |
 |-------|-------------|--------|
-| [Config Guardian](skills/config-guardian/) | Safe configuration management | ✅ Production Ready |
+| [SafeConfig](skills/safeconfig/) | Safe configuration management | ✅ Production Ready |
 | More coming... | | 🚧 In Development |
 
 ---

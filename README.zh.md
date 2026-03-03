@@ -29,7 +29,7 @@
 ### Shadow-AI (原版)
 一个将 **GKD 前端控制器**与**大语言模型**结合的 AI 引擎，通过语音/文本命令实现 Android 设备自动化。
 
-### Config Guardian ⭐ (精选 Skill)
+### SafeConfig ⭐ (精选 Skill)
 一个为 OpenClaw/Codex 设计的安全优先 Skill，在修改关键配置前强制执行严格的安全检查。
 
 **为什么这很重要：**
@@ -44,8 +44,8 @@
 
 **快速开始：**
 ```bash
-python3 skills/config-guardian/config-guardian.py --check ~/.openclaw/openclaw.json
-python3 skills/config-guardian/config-guardian.py --backup /etc/systemd/system/myapp.service
+python3 skills/safeconfig/safeconfig.py --check ~/.openclaw/openclaw.json
+python3 skills/safeconfig/safeconfig.py --backup /etc/systemd/system/myapp.service
 ```
 
 ---
@@ -59,7 +59,7 @@ python3 skills/config-guardian/config-guardian.py --backup /etc/systemd/system/m
 - 缺乏内置安全防护
 
 ### 解决方案
-**Config Guardian** 实现了 4 步安全工作流：
+**SafeConfig** 实现了 4 步安全工作流：
 
 1. **验证** — 使用任何参数前先查 `--help`
 2. **备份** — 修改前总是备份
@@ -106,7 +106,7 @@ sudo systemctl status service --no-pager  # 必须检查！
 
 | Skill | 描述 | 状态 |
 |-------|-------------|--------|
-| [Config Guardian](skills/config-guardian/) | 安全配置管理 | ✅ 生产就绪 |
+| [SafeConfig](skills/safeconfig/) | 安全配置管理 | ✅ 生产就绪 |
 | 更多 coming... | | 🚧 开发中 |
 
 ---

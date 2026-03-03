@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Config Guardian - Safe Configuration Management Script
+SafeConfig - Safe Configuration Management Script
 Validates parameters, backs up configs, requires user confirmation
 """
 
@@ -97,7 +97,7 @@ def generate_checklist(config_type, changes):
     return checklist
 
 def main():
-    parser = argparse.ArgumentParser(description="Config Guardian - Safe Configuration Management")
+    parser = argparse.ArgumentParser(description="SafeConfig - Safe Configuration Management")
     parser.add_argument("--check", help="Check if file is critical config")
     parser.add_argument("--backup", help="Backup specified config file")
     parser.add_argument("--validate-systemd", help="Validate systemd config file")
@@ -139,7 +139,7 @@ def main():
     
     # Default: show safety checklist template
     print("=" * 50)
-    print("Config Guardian - Safety Checklist")
+    print("SafeConfig - Safety Checklist")
     print("=" * 50)
     print("\nCritical config files:")
     for cfg in CRITICAL_CONFIGS:
@@ -151,9 +151,9 @@ def main():
     print("  4. Get explicit user confirmation")
     print("  5. Verify service status after modification")
     print("\nUsage:")
-    print("  config-guardian --check <filepath>     # Check if critical")
-    print("  config-guardian --backup <filepath>    # Backup config")
-    print("  config-guardian --validate-systemd <file>  # Validate systemd")
+    print("  safeconfig --check <filepath>     # Check if critical")
+    print("  safeconfig --backup <filepath>    # Backup config")
+    print("  safeconfig --validate-systemd <file>  # Validate systemd")
     
     return 0
 

@@ -1,9 +1,9 @@
 ---
-name: config-guardian
+name: safeconfig
 description: 配置修改安全守护技能。在修改关键配置文件（openclaw.json、systemd服务、nginx等）前强制执行安全检查：验证参数有效性、自动备份、二次确认。Use when: (1) 修改 ~/.openclaw/openclaw.json, (2) 修改 /etc/systemd/system/ 下的服务配置, (3) 修改 nginx/ssh 等系统配置, (4) 任何可能影响服务运行的配置变更。
 ---
 
-# Config Guardian - 安全配置管理
+# SafeConfig - 安全配置管理
 
 > <strong>⚠️ 为什么有这个 Skill</strong><br>
 > 当 AI Agent 拥有 `exec` 权限时，一个幻觉生成的参数就能让生产服务崩溃。这个 Skill 诞生于真实的痛苦——我曾因为模型建议的 `--daemon`（一个不存在的参数）在一晚之内让 OpenClaw 网关崩溃了 3 次。
@@ -40,7 +40,7 @@ ExecStart=/home/admin/.npm-global/bin/openclaw gateway start
 ```
 
 ### 教训 2：修改前必须备份
-没有备份，一次错误的编辑就能让你手忙脚乱。Config Guardian 自动创建带时间戳的备份：
+没有备份，一次错误的编辑就能让你手忙脚乱。SafeConfig 自动创建带时间戳的备份：
 ```
 ~/.config-backups/openclaw.service.20250303_234439.bak
 ```
@@ -60,29 +60,29 @@ git clone https://github.com/KKwang-X/Shadow-AI.git
 cd Shadow-AI
 
 # 添加执行权限
-chmod +x skills/config-guardian/config-guardian.py
+chmod +x skills/safeconfig/safeconfig.py
 
 # 可选：添加到 PATH
-sudo cp skills/config-guardian/config-guardian.py /usr/local/bin/
+sudo cp skills/safeconfig/safeconfig.py /usr/local/bin/
 ```
 
 ## 使用方法
 
 ### 检查是否为关键配置
 ```bash
-python3 config-guardian.py --check ~/.openclaw/openclaw.json
+python3 safeconfig.py --check ~/.openclaw/openclaw.json
 # 输出：关键配置: 是
 ```
 
 ### 备份配置文件
 ```bash
-python3 config-guardian.py --backup /etc/systemd/system/myapp.service
+python3 safeconfig.py --backup /etc/systemd/system/myapp.service
 # 输出：✅ 备份已创建: ~/.config-backups/myapp.service.20250303_234439.bak
 ```
 
 ### 验证 Systemd 配置
 ```bash
-python3 config-guardian.py --validate-systemd /etc/systemd/system/myapp.service
+python3 safeconfig.py --validate-systemd /etc/systemd/system/myapp.service
 # 输出：✅ systemd 配置验证通过
 ```
 
@@ -106,9 +106,9 @@ python3 config-guardian.py --validate-systemd /etc/systemd/system/myapp.service
 ## 配置安全规则
 
 修改关键配置文件时：
-1. 运行 `config-guardian.py --check <filepath>` 识别关键配置
-2. 运行 `config-guardian.py --backup <filepath>` 修改前备份
-3. 对于 systemd：运行 `config-guardian.py --validate-systemd <file>`
+1. 运行 `safeconfig.py --check <filepath>` 识别关键配置
+2. 运行 `safeconfig.py --backup <filepath>` 修改前备份
+3. 对于 systemd：运行 `safeconfig.py --validate-systemd <file>`
 4. 向用户展示确切的变更内容
 5. 获得明确确认（"确认"、"执行"、"ok"）
 6. 修改后验证服务状态
@@ -148,7 +148,7 @@ sudo systemctl restart myapp
 - 生成语法错误的配置
 - 未经验证就应用变更
 
-**Config Guardian 添加了本该内置的安全层。**
+**SafeConfig 添加了本该内置的安全层。**
 
 ## 许可证
 
