@@ -11,6 +11,7 @@ Shadow-AI is an AI engine that integrates a **frontend controller (leveraging [G
 - [Introduction](#introduction)
 - [Features](#features)
 - [Architecture](#architecture)
+- [Skills](#skills)
 - [Getting Started](#getting-started)
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
@@ -47,6 +48,29 @@ Shadow-AI's architecture comprises the following key components:
 5. **Security and Privacy Module**: Ensures secure storage and transmission of user data, adhering to privacy protection principles.
 
 This modular design ensures system flexibility and scalability, facilitating future feature additions and optimizations.
+
+## Skills
+
+Shadow-AI includes reusable skills for AI agent operations:
+
+### Config Guardian
+
+A safety guard skill for configuration management that enforces security checks before modifying critical config files.
+
+**Features:**
+- Validates parameter existence before modification
+- Auto-backup with timestamps
+- Requires user confirmation
+- Post-modification service verification
+
+**Usage:**
+```bash
+python3 skills/config-guardian/config-guardian.py --check <filepath>
+python3 skills/config-guardian/config-guardian.py --backup <filepath>
+python3 skills/config-guardian/config-guardian.py --validate-systemd <file>
+```
+
+See [skills/config-guardian/README.md](skills/config-guardian/README.md) for details.
 
 ## Getting Started
 
