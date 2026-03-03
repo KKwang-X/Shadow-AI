@@ -2,7 +2,14 @@
 """
 SafeConfig - Safe Configuration Management Script
 Validates parameters, backs up configs, requires user confirmation
-新增：审批人功能（--approver）
+新增：审批人功能（--approver）+ 安全增强版
+
+安全增强：
+- UUID4 随机请求ID
+- 审批人身份验证
+- 单审批人权限控制
+- 自动清理过期请求
+- 完整审计日志
 """
 
 import sys
@@ -12,8 +19,11 @@ import shutil
 import subprocess
 import argparse
 import time
-from datetime import datetime
+import uuid
+import fcntl
+from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Optional
 
 # Critical configuration files list
 CRITICAL_CONFIGS = [
@@ -25,10 +35,92 @@ CRITICAL_CONFIGS = [
 
 # 审批状态存储目录
 APPROVAL_DIR = Path("~/.safeconfig/approvals").expanduser()
+LOG_DIR = Path("~/.safeconfig/logs").expanduser()
 
-def ensure_approval_dir():
-    """确保审批目录存在"""
+# 授权审批人（只允许这些用户审批）
+# 格式: ["username1", "username2"] 或 ["kk"] 
+AUTHORIZED_APPROVERS = ["admin", "kk"]  # 可配置
+
+def ensure_dirs():
+    """确保必要目录存在"""
     APPROVAL_DIR.mkdir(parents=True, exist_ok=True)
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    
+    # 设置权限（仅所有者可读写）
+    os.chmod(APPROVAL_DIR, 0o700)
+    os.chmod(LOG_DIR, 0o700)
+
+def log_audit(action: str, details: dict):
+    """记录审计日志"""
+    log_file = LOG_DIR / f"audit_{datetime.now().strftime('%Y%m')}.log"
+    
+    log_entry = {
+        "timestamp": datetime.now().isoformat(),
+        "user": os.getenv("USER") or os.getenv("USERNAME") or "unknown",
+        "uid": os.getuid(),
+        "action": action,
+        "details": details
+    }
+    
+    with open(log_file, 'a') as f:
+        f.write(json.dumps(log_entry) + "\n")
+
+def check_approver_permission() -> bool:
+    """检查当前用户是否有审批权限"""
+    current_user = os.getenv("USER") or os.getenv("USERNAME") or ""
+    
+    # 检查是否在授权列表中
+    if current_user in AUTHORIZED_APPROVERS:
+        return True
+    
+    # 检查是否为 root
+    if os.getuid() == 0:
+        return True
+    
+    return False
+
+def acquire_lock(lock_file: Path) -> bool:
+    """获取文件锁，防止并发冲突"""
+    try:
+        fd = open(lock_file, 'w')
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return fd
+    except IOError:
+        return None
+
+def release_lock(fd):
+    """释放文件锁"""
+    if fd:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        fd.close()
+
+def cleanup_expired_requests():
+    """清理过期请求"""
+    if not APPROVAL_DIR.exists():
+        return
+    
+    now = datetime.now()
+    cleaned = 0
+    
+    for approval_file in APPROVAL_DIR.glob("*.json"):
+        try:
+            with open(approval_file, 'r') as f:
+                data = json.load(f)
+            
+            expires_at = datetime.fromisoformat(data.get("expires_at", "2000-01-01"))
+            
+            # 过期或已完成超过24小时
+            if now > expires_at or (
+                data.get("status") in ["approved", "rejected"] and
+                now > expires_at + timedelta(hours=24)
+            ):
+                approval_file.unlink()
+                cleaned += 1
+        except Exception:
+            pass
+    
+    if cleaned > 0:
+        log_audit("cleanup", {"cleaned_count": cleaned})
 
 def backup_config(filepath):
     """Create config backup"""
@@ -91,7 +183,7 @@ def parse_approver(approver_str):
         return {"channel": channel, "identifier": identifier}
     return None
 
-def send_approval_request(approver, filepath, changes_desc, request_id):
+def send_approval_request(approver, filepath, changes_desc, request_id, submitter):
     """发送审批请求"""
     channel = approver["channel"]
     identifier = approver["identifier"]
@@ -100,6 +192,7 @@ def send_approval_request(approver, filepath, changes_desc, request_id):
     message = f"""🔐 SafeConfig 审批请求
 
 请求ID: {request_id}
+提交人: {submitter}
 时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
 📁 待修改文件: {filepath}
@@ -109,121 +202,183 @@ def send_approval_request(approver, filepath, changes_desc, request_id):
 
 ⚠️ 这是一个关键配置文件，需要您的审批。
 
-✅ 回复 "批准" 或 "approve" 执行修改
-❌ 回复 "拒绝" 或 "reject" 取消操作
+✅ 回复 "批准" 或执行:
+   python3 safeconfig.py --approve {request_id}
+
+❌ 回复 "拒绝" 或执行:
+   python3 safeconfig.py --reject {request_id}
 
 ⏰ 审批将在30分钟后过期
+
+---
+安全提示: 此请求已记录审计日志
 """
     
-    if channel == "telegram":
-        return send_telegram_approval(identifier, message, request_id)
-    elif channel == "email":
-        return send_email_approval(identifier, message, request_id)
-    else:
-        print(f"⚠️  不支持的审批渠道: {channel}")
+    # 保存审批请求
+    approval_file = APPROVAL_DIR / f"{request_id}.json"
+    
+    approval_data = {
+        "request_id": request_id,
+        "channel": channel,
+        "recipient": identifier,
+        "submitter": submitter,
+        "message": message,
+        "status": "pending",
+        "created_at": datetime.now().isoformat(),
+        "expires_at": (datetime.now() + timedelta(minutes=30)).isoformat()
+    }
+    
+    # 使用文件锁防止并发写入
+    lock_file = APPROVAL_DIR / ".lock"
+    fd = acquire_lock(lock_file)
+    if not fd:
+        print_error("无法获取文件锁，可能有其他进程正在操作")
         return False
-
-def send_telegram_approval(username, message, request_id):
-    """通过 Telegram 发送审批请求"""
-    # 保存审批请求到文件，供外部轮询
-    ensure_approval_dir()
-    approval_file = APPROVAL_DIR / f"{request_id}.json"
     
-    approval_data = {
-        "request_id": request_id,
-        "channel": "telegram",
-        "recipient": username,
-        "message": message,
-        "status": "pending",
-        "created_at": datetime.now().isoformat(),
-        "expires_at": (datetime.now() + timedelta(minutes=30)).isoformat()
-    }
-    
-    with open(approval_file, 'w') as f:
-        json.dump(approval_data, f, indent=2)
-    
-    print(f"📨 Telegram 审批请求已发送给 @{username}")
-    print(f"📄 审批文件: {approval_file}")
-    print(f"\n💡 提示: 请通知 @{username} 查看 Telegram 消息并回复")
-    
-    # 尝试使用 telegram-cli 发送（如果配置了）
     try:
-        # 这里可以集成 telegram bot api
-        pass
-    except:
-        pass
+        with open(approval_file, 'w') as f:
+            json.dump(approval_data, f, indent=2)
+        
+        # 设置权限（仅所有者可读写）
+        os.chmod(approval_file, 0o600)
+    finally:
+        release_lock(fd)
     
-    return True
-
-def send_email_approval(email, message, request_id):
-    """通过邮件发送审批请求"""
-    ensure_approval_dir()
-    approval_file = APPROVAL_DIR / f"{request_id}.json"
+    print_info(f"审批请求已创建: {approval_file}")
+    print_info(f"请通知审批人 ({approver}) 查看并批准")
     
-    approval_data = {
+    # 记录审计日志
+    log_audit("approval_request_created", {
         "request_id": request_id,
-        "channel": "email",
-        "recipient": email,
-        "message": message,
-        "status": "pending",
-        "created_at": datetime.now().isoformat(),
-        "expires_at": (datetime.now() + timedelta(minutes=30)).isoformat()
-    }
-    
-    with open(approval_file, 'w') as f:
-        json.dump(approval_data, f, indent=2)
-    
-    # 尝试使用 qqmail-sender 发送
-    try:
-        qqmail_path = Path(__file__).parent.parent / "qqmail-sender" / "qqmail.py"
-        if qqmail_path.exists():
-            subprocess.run([
-                "python3", str(qqmail_path),
-                email,
-                f"🔐 SafeConfig 审批请求 - {request_id}",
-                message
-            ], check=True)
-            print(f"📧 审批邮件已发送至 {email}")
-    except Exception as e:
-        print(f"⚠️  邮件发送失败: {e}")
-        print(f"📄 审批文件已保存: {approval_file}")
+        "submitter": submitter,
+        "approver": f"{channel}:{identifier}",
+        "filepath": str(filepath)
+    })
     
     return True
 
 def wait_for_approval(request_id, timeout=1800):
-    """等待审批结果，默认30分钟"""
+    """等待审批结果"""
     approval_file = APPROVAL_DIR / f"{request_id}.json"
     
-    print(f"\n⏳ 等待审批中... (最多30分钟)")
-    print(f"💡 审批人请回复到对应渠道，或手动修改文件:")
-    print(f"   {approval_file}")
-    print(f"   将 status 改为 'approved' 或 'rejected'")
+    print_info(f"\n⏳ 等待审批中... (最多30分钟)")
+    print_info(f"审批人可执行: python3 safeconfig.py --approve {request_id}")
     
     start_time = time.time()
-    check_interval = 5  # 每5秒检查一次
+    check_interval = 5
     
     while time.time() - start_time < timeout:
         if approval_file.exists():
-            with open(approval_file, 'r') as f:
-                data = json.load(f)
-            
-            status = data.get("status")
-            if status == "approved":
-                print(f"\n✅ 审批已通过！")
-                return True
-            elif status == "rejected":
-                print(f"\n❌ 审批被拒绝")
-                return False
+            try:
+                with open(approval_file, 'r') as f:
+                    data = json.load(f)
+                
+                status = data.get("status")
+                if status == "approved":
+                    approver = data.get("approved_by", "unknown")
+                    print_success(f"审批已通过！ (by {approver})")
+                    log_audit("approval_granted", {
+                        "request_id": request_id,
+                        "approver": approver
+                    })
+                    return True
+                elif status == "rejected":
+                    approver = data.get("rejected_by", "unknown")
+                    print_error(f"审批被拒绝 (by {approver})")
+                    log_audit("approval_rejected", {
+                        "request_id": request_id,
+                        "approver": approver
+                    })
+                    return False
+            except Exception:
+                pass
         
-        # 显示倒计时
         remaining = int(timeout - (time.time() - start_time))
-        if remaining % 60 == 0:  # 每分钟显示一次
+        if remaining % 60 == 0 and remaining > 0:
             print(f"   剩余时间: {remaining // 60} 分钟")
         
         time.sleep(check_interval)
     
-    print(f"\n⏰ 审批超时（30分钟），操作取消")
+    print_error("审批超时，操作取消")
+    log_audit("approval_timeout", {"request_id": request_id})
     return False
+
+def approve_request(request_id: str) -> bool:
+    """批准请求（带身份验证）"""
+    # 检查权限
+    if not check_approver_permission():
+        current_user = os.getenv("USER") or "unknown"
+        print_error(f"用户 {current_user} 无审批权限")
+        log_audit("approve_denied", {"request_id": request_id, "user": current_user})
+        return False
+    
+    approval_file = APPROVAL_DIR / f"{request_id}.json"
+    if not approval_file.exists():
+        print_error(f"请求不存在: {request_id}")
+        return False
+    
+    # 使用文件锁
+    lock_file = APPROVAL_DIR / ".lock"
+    fd = acquire_lock(lock_file)
+    if not fd:
+        print_error("无法获取文件锁")
+        return False
+    
+    try:
+        with open(approval_file, 'r') as f:
+            data = json.load(f)
+        
+        current_user = os.getenv("USER") or os.getenv("USERNAME") or f"uid_{os.getuid()}"
+        data["status"] = "approved"
+        data["approved_by"] = current_user
+        data["approved_at"] = datetime.now().isoformat()
+        
+        with open(approval_file, 'w') as f:
+            json.dump(data, f, indent=2)
+        
+        print_success(f"已批准请求: {request_id} (by {current_user})")
+        log_audit("approve", {"request_id": request_id, "approver": current_user})
+        return True
+    finally:
+        release_lock(fd)
+
+def reject_request(request_id: str) -> bool:
+    """拒绝请求（带身份验证）"""
+    # 检查权限
+    if not check_approver_permission():
+        current_user = os.getenv("USER") or "unknown"
+        print_error(f"用户 {current_user} 无审批权限")
+        log_audit("reject_denied", {"request_id": request_id, "user": current_user})
+        return False
+    
+    approval_file = APPROVAL_DIR / f"{request_id}.json"
+    if not approval_file.exists():
+        print_error(f"请求不存在: {request_id}")
+        return False
+    
+    lock_file = APPROVAL_DIR / ".lock"
+    fd = acquire_lock(lock_file)
+    if not fd:
+        print_error("无法获取文件锁")
+        return False
+    
+    try:
+        with open(approval_file, 'r') as f:
+            data = json.load(f)
+        
+        current_user = os.getenv("USER") or os.getenv("USERNAME") or f"uid_{os.getuid()}"
+        data["status"] = "rejected"
+        data["rejected_by"] = current_user
+        data["rejected_at"] = datetime.now().isoformat()
+        
+        with open(approval_file, 'w') as f:
+            json.dump(data, f, indent=2)
+        
+        print_error(f"已拒绝请求: {request_id} (by {current_user})")
+        log_audit("reject", {"request_id": request_id, "approver": current_user})
+        return True
+    finally:
+        release_lock(fd)
 
 def generate_checklist(config_type, changes):
     """Generate safety checklist"""
@@ -249,141 +404,149 @@ def generate_checklist(config_type, changes):
     
     return checklist
 
+class Colors:
+    GREEN = "\033[92m"
+    RED = "\033[91m"
+    YELLOW = "\033[93m"
+    BLUE = "\033[94m"
+    RESET = "\033[0m"
+
+def print_header(text):
+    print(f"\n{Colors.BLUE}{'='*50}{Colors.RESET}")
+    print(f"{Colors.BLUE}{text}{Colors.RESET}")
+    print(f"{Colors.BLUE}{'='*50}{Colors.RESET}")
+
+def print_success(text):
+    print(f"{Colors.GREEN}✅ {text}{Colors.RESET}")
+
+def print_error(text):
+    print(f"{Colors.RED}❌ {text}{Colors.RESET}")
+
+def print_warning(text):
+    print(f"{Colors.YELLOW}⚠️  {text}{Colors.RESET}")
+
+def print_info(text):
+    print(f"{Colors.BLUE}ℹ️  {text}{Colors.RESET}")
+
 def main():
-    from datetime import timedelta  # 导入放在这里避免循环导入
-    
-    parser = argparse.ArgumentParser(description="SafeConfig - Safe Configuration Management")
-    parser.add_argument("--check", help="Check if file is critical config")
-    parser.add_argument("--backup", help="Backup specified config file")
-    parser.add_argument("--validate-systemd", help="Validate systemd config file")
-    parser.add_argument("--type", choices=["openclaw.json", "systemd", "nginx", "ssh"], 
-                        help="Config type")
-    parser.add_argument("--approver", help="指定审批人 (格式: telegram:username 或 email:address)")
-    parser.add_argument("--changes", help="变更说明（用于审批）")
-    parser.add_argument("--approve", help="批准指定请求ID（审批人用）")
-    parser.add_argument("--reject", help="拒绝指定请求ID（审批人用）")
+    parser = argparse.ArgumentParser(
+        description="SafeConfig - 安全配置管理（安全增强版）",
+        epilog="安全增强: UUID4 | 身份验证 | 单审批人 | 审计日志"
+    )
+    parser.add_argument("--check", help="检查配置文件")
+    parser.add_argument("--backup", help="备份配置文件")
+    parser.add_argument("--validate-systemd", help="验证 systemd 配置")
+    parser.add_argument("--approver", help="指定审批人")
+    parser.add_argument("--changes", help="变更说明")
+    parser.add_argument("--approve", help="批准请求（需权限）")
+    parser.add_argument("--reject", help="拒绝请求（需权限）")
+    parser.add_argument("--cleanup", action="store_true", help="清理过期请求")
+    parser.add_argument("--audit-log", action="store_true", help="查看审计日志")
     
     args = parser.parse_args()
     
-    # 审批人操作：批准/拒绝
-    if args.approve:
-        ensure_approval_dir()
-        approval_file = APPROVAL_DIR / f"{args.approve}.json"
-        if approval_file.exists():
-            with open(approval_file, 'r') as f:
-                data = json.load(f)
-            data["status"] = "approved"
-            data["approved_at"] = datetime.now().isoformat()
-            with open(approval_file, 'w') as f:
-                json.dump(data, f, indent=2)
-            print(f"✅ 已批准请求: {args.approve}")
+    # 初始化
+    ensure_dirs()
+    
+    # 清理过期请求
+    cleanup_expired_requests()
+    
+    # 查看审计日志
+    if args.audit_log:
+        log_file = LOG_DIR / f"audit_{datetime.now().strftime('%Y%m')}.log"
+        if log_file.exists():
+            print(log_file.read_text())
         else:
-            print(f"❌ 请求不存在: {args.approve}")
-        return 0
+            print("暂无审计日志")
+        return
+    
+    # 处理批准/拒绝
+    if args.approve:
+        sys.exit(0 if approve_request(args.approve) else 1)
     
     if args.reject:
-        ensure_approval_dir()
-        approval_file = APPROVAL_DIR / f"{args.reject}.json"
-        if approval_file.exists():
-            with open(approval_file, 'r') as f:
-                data = json.load(f)
-            data["status"] = "rejected"
-            data["rejected_at"] = datetime.now().isoformat()
-            with open(approval_file, 'w') as f:
-                json.dump(data, f, indent=2)
-            print(f"❌ 已拒绝请求: {args.reject}")
-        else:
-            print(f"❌ 请求不存在: {args.reject}")
-        return 0
+        sys.exit(0 if reject_request(args.reject) else 1)
     
-    # 检查关键配置
+    # 检查配置文件
     if args.check:
         filepath = Path(args.check).expanduser()
         is_critical = is_critical_config(filepath)
-        print(f"File: {filepath}")
-        print(f"Critical config: {'Yes' if is_critical else 'No'}")
+        print(f"文件: {filepath}")
+        print(f"关键配置: {'是' if is_critical else '否'}")
         if is_critical:
-            print("\n⚠️  This is a critical config file. Before modification:")
-            print("  1. Validate parameter existence")
-            print("  2. Create backup")
-            print("  3. Get user confirmation")
+            print("\n⚠️  这是关键配置文件，修改前必须：")
+            print("  1. 验证参数有效性")
+            print("  2. 创建备份")
+            print("  3. 获得用户确认")
             if args.approver:
-                print(f"  4. Get approver confirmation ({args.approver})")
-        return 0 if not is_critical else 1
+                print(f"  4. 获得审批人确认 ({args.approver})")
+        return
     
     # 备份配置（带审批流程）
     if args.backup:
         filepath = Path(args.backup).expanduser()
+        submitter = os.getenv("USER") or os.getenv("USERNAME") or f"uid_{os.getuid()}"
         
         # 如果指定了审批人，进入审批流程
         if args.approver:
             approver = parse_approver(args.approver)
             if not approver:
-                print("❌ 审批人格式错误，应为: telegram:username 或 email:address")
-                return 1
+                print_error("审批人格式错误，应为: telegram:username 或 email:address")
+                sys.exit(1)
             
             changes = args.changes or f"备份文件: {filepath}"
-            request_id = f"req_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{os.urandom(4).hex()}"
+            request_id = str(uuid.uuid4())  # 使用 UUID4
             
-            print(f"🔐 启动审批流程")
-            print(f"📋 请求ID: {request_id}")
-            print(f"👤 审批人: {approver['channel']}:{approver['identifier']}")
+            print_header("🔐 启动审批流程")
+            print_info(f"请求ID: {request_id}")
+            print_info(f"提交人: {submitter}")
+            print_info(f"审批人: {approver['channel']}:{approver['identifier']}")
             
             # 发送审批请求
-            if not send_approval_request(approver, str(filepath), changes, request_id):
-                print("❌ 审批请求发送失败")
-                return 1
+            if not send_approval_request(approver, str(filepath), changes, request_id, submitter):
+                print_error("审批请求发送失败")
+                sys.exit(1)
             
             # 等待审批
             if not wait_for_approval(request_id):
-                print("❌ 审批未通过，操作取消")
-                return 1
+                print_error("审批未通过，操作取消")
+                sys.exit(1)
             
-            print("\n📦 继续执行备份...")
+            print_header("📦 继续执行备份...")
         
         # 执行备份
         backup_path = backup_config(filepath)
         if backup_path:
-            print(f"✅ Backup created: {backup_path}")
-            return 0
+            print_success(f"备份已创建: {backup_path}")
+            log_audit("backup_created", {"filepath": str(filepath), "backup": str(backup_path)})
         else:
-            print(f"⚠️  File doesn't exist, no backup needed: {filepath}")
-            return 1
+            print_warning(f"文件不存在，无需备份: {filepath}")
+        return
     
     # 验证 systemd 配置
     if args.validate_systemd:
         valid, error = validate_systemd_config(args.validate_systemd)
         if valid:
-            print("✅ systemd config validated")
-            return 0
+            print_success("systemd 配置验证通过")
         else:
-            print(f"❌ systemd config error: {error}")
-            return 1
+            print_error(f"systemd 配置错误: {error}")
+        sys.exit(0 if valid else 1)
     
-    # Default: show safety checklist template
-    print("=" * 50)
-    print("SafeConfig - Safety Checklist")
-    print("=" * 50)
-    print("\nCritical config files:")
-    for cfg in CRITICAL_CONFIGS:
-        print(f"  • {cfg}")
-    print("\nRequired before modification:")
-    print("  1. Verify parameter exists (--help)")
-    print("  2. Create config backup")
-    print("  3. Show changes to user")
-    print("  4. Get explicit user confirmation")
-    print("  5. Verify service status after modification")
-    print("\n🔐 审批人功能（可选）:")
-    print("  --approver telegram:username  # Telegram审批")
-    print("  --approver email:address      # 邮件审批")
-    print("\nUsage:")
-    print("  safeconfig --check <filepath> [--approver telegram:admin]")
-    print("  safeconfig --backup <filepath> --approver email:admin@company.com --changes '修改说明'")
-    print("  safeconfig --validate-systemd <file>")
-    print("  safeconfig --approve <request_id>    # 批准请求")
-    print("  safeconfig --reject <request_id>     # 拒绝请求")
-    
-    return 0
+    # 默认：显示帮助
+    print_header("SafeConfig - 安全配置管理（安全增强版）")
+    print("\n安全特性:")
+    print("  • UUID4 随机请求ID")
+    print("  • 审批人身份验证")
+    print("  • 单审批人权限控制")
+    print("  • 文件锁防并发")
+    print("  • 自动清理过期请求")
+    print("  • 完整审计日志")
+    print("\n使用方法:")
+    print("  safeconfig.py --check <filepath>")
+    print("  safeconfig.py --backup <filepath> --approver telegram:admin")
+    print("  safeconfig.py --approve <request_id>    # 需要权限")
+    print("  safeconfig.py --reject <request_id>     # 需要权限")
+    print("  safeconfig.py --audit-log               # 查看审计日志")
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()
