@@ -26,6 +26,34 @@ This repository documents my journey building AI agent systems, with special foc
 
 ## 🚀 Projects
 
+### SafeDeploy 🔧 (NEW - 新手必用！)
+**踩过无数坑换来的 OpenClaw 安全部署工具**
+
+> 💡 "曾因 `--daemon` 参数崩溃 3 次，曾因未备份配置丢失重要设置... 这个工具就是为避免这些血泪教训而生。"
+
+**为什么新手必用：**
+- ✅ 部署前自动验证所有配置
+- ✅ 发现 bug 自动修复（如移除无效参数）
+- ✅ 高风险操作需审批人确认
+- ✅ 自动备份，失败可回滚
+- ✅ 一键部署，无需手动检查
+
+**快速开始：**
+```bash
+# 仅检查配置
+python3 safedeploy.py check
+
+# 检查并自动修复
+python3 safedeploy.py fix
+
+# 完整部署（推荐）
+python3 safedeploy.py deploy --approver telegram:admin
+```
+
+**[📖 完整文档](SAFEDEPLOY.md)**
+
+---
+
 ### Shadow-AI (Original)
 An AI engine integrating **GKD frontend controller** with **Large Language Models** for Android device automation via voice/text commands.
 
