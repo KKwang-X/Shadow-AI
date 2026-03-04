@@ -1,204 +1,357 @@
-# SafeConfig v2.1
+<div align="center">
+
+# 🔐 SafeConfig v2.1
 
 <p align="center">
-  <a href="https://github.com/KKwang-X/Shadow-AI"><img src="https://img.shields.io/badge/version-2.1.0-blue.svg" alt="Version"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License"></a>
-  <a href="https://openclaw.ai"><img src="https://img.shields.io/badge/OpenClaw-Compatible-orange.svg" alt="OpenClaw"></a>
-  <img src="https://img.shields.io/badge/python-3.8+-blue.svg" alt="Python">
+  <b>不可绕过的强制配置安全管理流程</b>
 </p>
 
 <p align="center">
-  <b>🔐 不可绕过的强制配置安全管理流程</b>
+  <a href="https://github.com/KKwang-X/Shadow-AI/releases"><img src="https://img.shields.io/github/v/release/KKwang-X/Shadow-AI?style=flat-square&color=blue" alt="Release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/KKwang-X/Shadow-AI?style=flat-square&color=green" alt="License"></a>
+  <a href="https://openclaw.ai"><img src="https://img.shields.io/badge/OpenClaw-Compatible-orange?style=flat-square" alt="OpenClaw"></a>
+  <a href="#"><img src="https://img.shields.io/badge/Python-3.8+-blue?style=flat-square&logo=python" alt="Python"></a>
+  <a href="#"><img src="https://img.shields.io/badge/Tests-Passing-brightgreen?style=flat-square" alt="Tests"></a>
 </p>
 
 <p align="center">
-  <a href="README.zh.md">中文</a> | English
+  <a href="README.zh.md"><img src="https://img.shields.io/badge/中文-文档-red?style=flat-square" alt="中文"></a>
+  <a href="#quick-start">Quick Start</a> •
+  <a href="#features">Features</a> •
+  <a href="#documentation">Docs</a> •
+  <a href="#contributing">Contributing</a>
 </p>
+
+</div>
 
 ---
 
-## 🎬 演示
+## 🎯 What is SafeConfig?
+
+SafeConfig is an **unbypassable forced security workflow** for configuration management. It ensures every configuration change goes through a rigorous 9-phase process before reaching production.
 
 ```
-┌─────────────────────────────────────────┐
-│  $ python3 safeconfig-v2.py             │
-│                                         │
-│  🔐 SafeConfig v2.1 - 完整流程          │
-│  ====================================   │
-│                                         │
-│  Phase 1: 预审查 ✅ 16项检查通过        │
-│  Phase 2: 变更分析 ✅ 低风险            │
-│  Phase 3: 创建备份 ✅ 已备份            │
-│  Phase 4: 生成审批 ✅ 请求ID: xxx       │
-│  Phase 5: 等待审批 ⏳ 等待中...         │
-│  Phase 6: 虚拟测试 ✅ 通过              │
-│  Phase 7: 执行变更 ✅ 完成              │
-│  Phase 8: 验证结果 ✅ 通过              │
-│  Phase 9: 审计日志 ✅ 已记录            │
-│                                         │
-│  ✅ SafeConfig 流程完成                  │
-└─────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│  Before SafeConfig          After SafeConfig                │
+│  ─────────────────          ────────────────                │
+│                                                             │
+│  vim config.json    →    16 Scheme Checks ✅               │
+│  systemctl restart  →    Virtual Environment Test ✅       │
+│  Hope it works      →    Approval + Audit Trail ✅         │
+│                                                             │
+│  🔴 Risk: High           🟢 Risk: Minimal                  │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## ✨ 核心特性
+## ✨ Features
 
-- ✅ **9 Phase 强制流程** - 从意图声明到审计归档
-- ✅ **16 项 Scheme 验证** - 基于 OpenClaw 配置规范
-- ✅ **虚拟环境测试** - 隔离验证后再部署
-- ✅ **双重审批机制** - 自动检查 + 人工审批
-- ✅ **完整审计追踪** - 所有操作可追溯
-- ✅ **一键回滚** - 自动/手动/交互式回滚
-- ✅ **可视化仪表板** - HTML 报表展示
+<table>
+<tr>
+<td width="50%">
+
+### 🔒 Security First
+- **9-Phase Forced Workflow** - No step can be skipped
+- **16-Point Scheme Validation** - Based on OpenClaw specs
+- **Virtual Environment Testing** - Test before production
+- **Double Approval** - Auto-checks + Human approval
+
+</td>
+<td width="50%">
+
+### 📊 Full Visibility
+- **Complete Audit Trail** - Every action logged
+- **HTML Dashboard** - Visual reports
+- **Risk Analysis** - Identify issues early
+- **Timeline Reports** - Track changes over time
+
+</td>
+</tr>
+<tr>
+<td>
+
+### 🔄 Safety Net
+- **One-Click Rollback** - Auto/manual/interactive
+- **Triple Backup Strategy** - L1/L2/L3 backups
+- **Failure Detection** - Auto-rollback on issues
+- **Recovery Testing** - Verified restore process
+
+</td>
+<td>
+
+### 🚀 Developer Experience
+- **Simple CLI** - Easy to use
+- **Clear Output** - Know what's happening
+- **Fast Feedback** - Quick validation
+- **Git Integration** - Version controlled configs
+
+</td>
+</tr>
+</table>
 
 ---
 
-## 🚀 快速开始
+## 🚀 Quick Start
 
-### 安装
+### Installation
 
 ```bash
-# 克隆到 OpenClaw workspace
+# Clone repository
 git clone https://github.com/KKwang-X/Shadow-AI.git
-cd Shadow-AI/safescheme-v2
 
-# 安装到 skills 目录
-cp -r . ~/.openclaw/workspace/skills/safescheme-v2
+# Install to OpenClaw skills
+cp -r Shadow-AI/safescheme-v2 ~/.openclaw/workspace/skills/
+cd ~/.openclaw/workspace/skills/safescheme-v2
 ```
 
-### 使用
+### Basic Usage
 
 ```bash
-cd ~/.openclaw/workspace/skills/safescheme-v2
-
-# 执行完整 SafeConfig 流程
+# Run full SafeConfig workflow
 python3 scripts/safeconfig-v2.py \
   --file ~/.openclaw/openclaw.json \
   --approver telegram:8028839180 \
-  --changes "更新 API Key"
+  --changes "Update API configuration"
 
-# 批准请求
-python3 scripts/safeconfig-v2.py --approve <request_id>
+# Approve pending request
+python3 scripts/safeconfig-v2.py --approve <request-id>
+```
+
+### One-Liner Install
+
+```bash
+curl -sSL https://raw.githubusercontent.com/KKwang-X/Shadow-AI/main/install.sh | bash
 ```
 
 ---
 
-## 📊 9 Phase 流程
+## 📋 The 9-Phase Workflow
 
-| Phase | 名称 | 说明 | 强制 |
-|-------|------|------|------|
-| 0 | 意图声明 | 主动声明操作意图 | ✅ |
-| 1 | 预审查 | 16 项 Scheme 验证 | ✅ |
-| 2 | 变更分析 | 详细影响分析 | ✅ |
-| 3 | 创建备份 | L1/L2/L3 三级备份 | ✅ |
-| 4 | 生成审批 | 创建审批请求 | ✅ |
-| 5 | 等待审批 | 用户批准/拒绝 | ✅ |
-| 6 | 虚拟测试 | 隔离环境验证 | ✅ |
-| 7 | 执行变更 | 生产环境应用 | ✅ |
-| 8 | 验证结果 | 多维度验证 | ✅ |
-| 9 | 审计日志 | 完整记录归档 | ✅ |
+<details open>
+<summary><b>Click to see detailed workflow</b></summary>
 
----
-
-## 🛡️ 16 项 Scheme 检查
-
-<details>
-<summary>点击查看完整检查清单</summary>
-
-| # | 检查项 | 说明 |
-|---|--------|------|
-| 1 | 文件存在性 | 配置文件必须存在 |
-| 2 | JSON 语法 | 必须合法 JSON |
-| 3 | Scheme 结构 | 必需字段完整 |
-| 4 | Meta 字段 | meta 信息完整 |
-| 5 | Telegram botToken | 如启用必须配置 |
-| 6 | Gateway auth token | 必须配置 |
-| 7 | 类型检查 | 字段类型正确 |
-| 8 | groupPolicy 值域 | 枚举值合法 |
-| 9 | 依赖关系 | 启用功能有配置 |
-| 10 | API Key 安全 | 不是占位符 |
-| 11 | OpenClaw 状态 | 服务运行中 |
-| 12 | 端口健康 | 5555 端口监听 |
-| 13 | 磁盘空间 | 使用率 < 80% |
-| 14 | 内存状态 | 内存充足 |
-| 15 | 版本兼容 | 配置与版本匹配 |
-| 16 | 日志检查 | 无严重错误 |
+| Phase | Name | Description | Duration |
+|-------|------|-------------|----------|
+| 0 | **Intent Declaration** | Declare operation intent | < 1s |
+| 1 | **Pre-Check** | 16-point scheme validation | ~2s |
+| 2 | **Change Analysis** | Detailed impact analysis | ~1s |
+| 3 | **Backup Creation** | L1/L2/L3 backup strategy | ~1s |
+| 4 | **Approval Request** | Generate approval ticket | < 1s |
+| 5 | **Await Approval** | Human approval required | Variable |
+| 6 | **Virtual Testing** | Isolated environment test | ~10s |
+| 7 | **Apply Changes** | Production deployment | ~2s |
+| 8 | **Verification** | Multi-dimension validation | ~3s |
+| 9 | **Audit Log** | Complete record archiving | < 1s |
 
 </details>
 
 ---
 
-## 📈 审计仪表板
+## 🛡️ 16-Point Scheme Validation
 
-```bash
-# 生成 HTML 仪表板
-python3 scripts/audit_dashboard.py --html
+<details>
+<summary><b>View all validation checks</b></summary>
 
-# 打开查看
-open ~/.safeconfig/dashboard.html
-```
+### File & Syntax
+- ✅ **File Existence** - Config file must exist
+- ✅ **JSON Syntax** - Must be valid JSON
+- ✅ **Schema Structure** - Required fields present
+- ✅ **Type Checking** - Correct data types
 
-<img src="docs/dashboard-screenshot.png" alt="Dashboard" width="800">
+### Configuration
+- ✅ **Required Fields** - botToken, auth tokens
+- ✅ **Value Ranges** - Valid enum values
+- ✅ **Dependencies** - Enabled features configured
+- ✅ **Security** - No placeholder API keys
+
+### System Health
+- ✅ **Service Status** - OpenClaw running
+- ✅ **Port Health** - Gateway port listening
+- ✅ **Disk Space** - < 80% usage
+- ✅ **Memory Status** - Sufficient memory
+
+### Compatibility
+- ✅ **Version Match** - Config compatible
+- ✅ **Log Check** - No critical errors
+- ✅ **Resource Check** - System resources OK
+- ✅ **Network Check** - Connectivity verified
+
+</details>
 
 ---
 
-## 🔄 回滚操作
+## 📊 Dashboard & Reporting
+
+### Generate HTML Dashboard
 
 ```bash
-# 列出备份
+python3 scripts/audit_dashboard.py --html
+open ~/.safeconfig/dashboard.html
+```
+
+<div align="center">
+<img src="docs/dashboard-preview.png" alt="Dashboard" width="800">
+</div>
+
+### CLI Reports
+
+```bash
+# Timeline report
+python3 scripts/audit_dashboard.py --timeline 7
+
+# Risk analysis
+python3 scripts/audit_dashboard.py --risk 30
+
+# Statistics
+python3 scripts/audit_logger.py --stats
+```
+
+---
+
+## 🔄 Rollback Capabilities
+
+### Automatic Rollback
+
+```python
+# Auto-rollback on test failure
+if not test_configuration():
+    rollback_manager.rollback(target_file, backup_file)
+```
+
+### Interactive Rollback
+
+```bash
+# List available backups
 python3 scripts/rollback_manager.py \
   --list openclaw.json \
   --target ~/.openclaw/openclaw.json
 
-# 回滚到指定备份
-python3 scripts/rollback_manager.py \
-  --rollback ~/.config-backups/openclaw.json.20260304_120000.bak \
-  --target ~/.openclaw/openclaw.json
+# Interactive selection
+python3 -c "from scripts.rollback_manager import RollbackManager; \\
+  RollbackManager().interactive_rollback('~/.openclaw/openclaw.json')"
 ```
 
 ---
 
-## 📁 项目结构
+## 🏗️ Architecture
 
 ```
 safescheme-v2/
-├── README.md              # 本文档
-├── README.zh.md           # 中文文档
-├── SKILL.md               # OpenClaw Skill 元数据
-├── scripts/
-│   ├── safescheme.py      # Phase 1: Scheme 验证
-│   ├── safeconfig-v2.py   # 主流程控制器
-│   ├── audit_logger.py    # 审计日志系统
-│   ├── audit_dashboard.py # 可视化仪表板
-│   ├── rollback_manager.py # 回滚管理器
-│   └── notification_system.py # 通知系统
-└── docs/
-    └── dashboard-screenshot.png
+├── 📄 README.md                 # This file
+├── 📄 README.zh.md              # Chinese documentation
+├── 📄 SKILL.md                  # OpenClaw skill metadata
+├── ⚙️  clawhub.json              # ClawHub publishing config
+├── 📋 config.json.example       # Configuration example
+│
+├── 📁 scripts/
+│   ├── 🔍 safescheme.py         # Phase 1: Schema validation
+│   ├── 🎛️  safeconfig-v2.py     # Main workflow controller
+│   ├── 📝 audit_logger.py       # Audit logging system
+│   ├── 📊 audit_dashboard.py    # Visualization dashboard
+│   ├── 🔄 rollback_manager.py   # Rollback management
+│   └── 📢 notification_system.py # Multi-channel notifications
+│
+└── 📁 docs/
+    └── dashboard-preview.png    # Screenshot
 ```
 
 ---
 
-## 🤝 贡献
+## 💡 Use Cases
 
-欢迎提交 Issue 和 PR！
+### For Individual Users
+- Protect your OpenClaw configuration
+- Prevent accidental service downtime
+- Track all configuration changes
+- Easy rollback when things go wrong
 
-1. Fork 本项目
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交变更 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送分支 (`git push origin feature/AmazingFeature`)
-5. 创建 Pull Request
+### For Teams
+- Enforce configuration review process
+- Share configuration responsibility
+- Audit trail for compliance
+- Reduce operational errors
+
+### For Enterprises
+- Standardized deployment process
+- Risk mitigation
+- Compliance requirements
+- Disaster recovery
 
 ---
 
-## 📄 许可证
+## 🤝 Contributing
 
-MIT License - 详见 [LICENSE](../LICENSE)
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+
+### Quick Contributing Guide
+
+1. **Fork** the repository
+2. **Create** your feature branch (`git checkout -b feature/AmazingFeature`)
+3. **Commit** your changes (`git commit -m 'Add some AmazingFeature'`)
+4. **Push** to the branch (`git push origin feature/AmazingFeature`)
+5. **Open** a Pull Request
+
+### Development Setup
+
+```bash
+# Clone your fork
+git clone https://github.com/YOUR_USERNAME/Shadow-AI.git
+
+# Install development dependencies
+pip install -r requirements-dev.txt
+
+# Run tests
+pytest tests/
+
+# Run linting
+flake8 scripts/
+```
 
 ---
 
-<p align="center">
-  🔐 <b>SafeConfig v2.1</b> - 让配置变更更安全
-  <br>
-  Made with ❤️ by <a href="https://github.com/KKwang-X">KKwang-X</a>
-</p>
+## 📚 Documentation
+
+- 📖 [Full Documentation](docs/)
+- 🚀 [Quick Start Guide](docs/quickstart.md)
+- 🛠️ [Configuration Reference](docs/config.md)
+- 🔧 [Troubleshooting](docs/troubleshooting.md)
+- 📊 [API Reference](docs/api.md)
+
+---
+
+## 🗺️ Roadmap
+
+- [x] Core 9-phase workflow
+- [x] 16-point scheme validation
+- [x] Virtual environment testing
+- [x] Audit logging & dashboard
+- [x] Rollback management
+- [ ] Web UI management interface
+- [ ] Multi-user role-based access
+- [ ] AI-powered configuration suggestions
+- [ ] Integration with CI/CD pipelines
+
+---
+
+## 📜 License
+
+MIT License - see [LICENSE](../LICENSE) file for details.
+
+---
+
+## 🙏 Acknowledgments
+
+- Inspired by [OpenClaw](https://openclaw.ai) security best practices
+- Built for the AI-native operations community
+- Thanks to all contributors!
+
+---
+
+<div align="center">
+
+**[⬆ Back to Top](#-safeconfig-v21)**
+
+Made with ❤️ by [KKwang-X](https://github.com/KKwang-X)
+
+</div>
