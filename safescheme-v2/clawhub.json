@@ -1,0 +1,50 @@
+{
+  "name": "safescheme-v2",
+  "version": "2.1.0",
+  "description": "不可绕过的强制配置安全管理流程。基于 OpenClaw Scheme 规范的完整安全配置管理，包含 9 Phase 强制流程、16 项验证、虚拟环境测试、审计追踪、自动回滚。",
+  "author": "KKwang-X",
+  "license": "MIT",
+  "homepage": "https://github.com/KKwang-X/Shadow-AI/tree/main/safescheme-v2",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/KKwang-X/Shadow-AI.git",
+    "directory": "safescheme-v2"
+  },
+  "keywords": [
+    "security",
+    "config-management",
+    "audit",
+    "rollback",
+    "deployment",
+    "openclaw",
+    "safeconfig"
+  ],
+  "categories": ["security", "devops", "utilities"],
+  "requirements": {
+    "openclaw": ">=2026.3.0",
+    "python": ">=3.8"
+  },
+  "installation": {
+    "type": "git",
+    "url": "https://github.com/KKwang-X/Shadow-AI.git",
+    "path": "safescheme-v2"
+  },
+  "entry": {
+    "cli": "scripts/safeconfig-v2.py",
+    "schema": "scripts/safescheme.py"
+  },
+  "config": {
+    "example": "config.json.example"
+  },
+  "screenshots": [
+    "docs/dashboard-screenshot.png"
+  ],
+  "documentation": {
+    "readme": "README.md",
+    "skill": "SKILL.md"
+  },
+  "support": {
+    "issues": "https://github.com/KKwang-X/Shadow-AI/issues",
+    "discussions": "https://github.com/KKwang-X/Shadow-AI/discussions"
+  }
+}

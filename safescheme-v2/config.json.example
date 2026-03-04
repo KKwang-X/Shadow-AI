@@ -1,0 +1,21 @@
+{
+  "safescheme": {
+    "authorized_approvers": ["admin", "kk"],
+    "backup_retention": 10,
+    "approval_timeout_minutes": 30
+  },
+  "notification": {
+    "telegram": {
+      "enabled": true,
+      "chat_id": "8028839180"
+    },
+    "email": {
+      "enabled": false,
+      "address": "admin@example.com"
+    }
+  },
+  "audit": {
+    "log_level": "info",
+    "retention_days": 90
+  }
+}
