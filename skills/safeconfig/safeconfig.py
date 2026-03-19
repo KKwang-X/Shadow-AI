@@ -109,11 +109,10 @@ def cleanup_expired_requests():
             
             expires_at = datetime.fromisoformat(data.get("expires_at", "2000-01-01"))
             
-            # 过期或已完成超过24小时
-            if now > expires_at or (
-                data.get("status") in ["approved", "rejected"] and
-                now > expires_at + timedelta(hours=24)
-            ):
+            # 已完成的请求保留24小时，其他过期请求立即清理
+            is_completed = data.get("status") in ["approved", "rejected"]
+            if (is_completed and now > expires_at + timedelta(hours=24)) or \
+               (not is_completed and now > expires_at):
                 approval_file.unlink()
                 cleaned += 1
         except Exception:
@@ -245,8 +244,25 @@ def send_approval_request(approver, filepath, changes_desc, request_id, submitte
         release_lock(fd)
     
     print_info(f"审批请求已创建: {approval_file}")
-    print_info(f"请通知审批人 ({approver}) 查看并批准")
-    
+
+    # 打印完整审批消息到控制台（方便人工转发）
+    print("\n" + "=" * 60)
+    print("📋 请将以下内容发送给审批人:")
+    print("=" * 60)
+    print(message)
+    print("=" * 60 + "\n")
+
+    # TODO: 对接实际推送渠道
+    # 如需 Telegram 推送，请集成 qqmail-sender 或 Telegram Bot API：
+    #   channel == "telegram": 调用 Telegram Bot sendMessage API
+    #   channel == "email":    调用 qqmail.py send_email()
+    if channel == "telegram":
+        print_warning(f"Telegram 推送尚未集成，请手动转发上方内容给 {identifier}")
+    elif channel == "email":
+        print_warning(f"Email 推送尚未集成，请手动转发上方内容给 {identifier}")
+    else:
+        print_warning(f"未知渠道 '{channel}'，请手动转发上方内容给 {identifier}")
+
     # 记录审计日志
     log_audit("approval_request_created", {
         "request_id": request_id,
@@ -316,26 +332,37 @@ def approve_request(request_id: str) -> bool:
     if not approval_file.exists():
         print_error(f"请求不存在: {request_id}")
         return False
-    
+
     # 使用文件锁
     lock_file = APPROVAL_DIR / ".lock"
     fd = acquire_lock(lock_file)
     if not fd:
         print_error("无法获取文件锁")
         return False
-    
+
     try:
         with open(approval_file, 'r') as f:
             data = json.load(f)
-        
+
+        # 检查是否已处理
+        if data.get("status") in ["approved", "rejected"]:
+            print_error(f"请求已处理（状态: {data['status']}），不可重复操作")
+            return False
+
+        # 检查是否已过期
+        expires_at = datetime.fromisoformat(data.get("expires_at", "2000-01-01"))
+        if datetime.now() > expires_at:
+            print_error(f"请求已过期（{expires_at.strftime('%Y-%m-%d %H:%M:%S')}），操作取消")
+            return False
+
         current_user = os.getenv("USER") or os.getenv("USERNAME") or f"uid_{os.getuid()}"
         data["status"] = "approved"
         data["approved_by"] = current_user
         data["approved_at"] = datetime.now().isoformat()
-        
+
         with open(approval_file, 'w') as f:
             json.dump(data, f, indent=2)
-        
+
         print_success(f"已批准请求: {request_id} (by {current_user})")
         log_audit("approve", {"request_id": request_id, "approver": current_user})
         return True
@@ -350,30 +377,41 @@ def reject_request(request_id: str) -> bool:
         print_error(f"用户 {current_user} 无审批权限")
         log_audit("reject_denied", {"request_id": request_id, "user": current_user})
         return False
-    
+
     approval_file = APPROVAL_DIR / f"{request_id}.json"
     if not approval_file.exists():
         print_error(f"请求不存在: {request_id}")
         return False
-    
+
     lock_file = APPROVAL_DIR / ".lock"
     fd = acquire_lock(lock_file)
     if not fd:
         print_error("无法获取文件锁")
         return False
-    
+
     try:
         with open(approval_file, 'r') as f:
             data = json.load(f)
-        
+
+        # 检查是否已处理
+        if data.get("status") in ["approved", "rejected"]:
+            print_error(f"请求已处理（状态: {data['status']}），不可重复操作")
+            return False
+
+        # 检查是否已过期
+        expires_at = datetime.fromisoformat(data.get("expires_at", "2000-01-01"))
+        if datetime.now() > expires_at:
+            print_error(f"请求已过期（{expires_at.strftime('%Y-%m-%d %H:%M:%S')}），操作取消")
+            return False
+
         current_user = os.getenv("USER") or os.getenv("USERNAME") or f"uid_{os.getuid()}"
         data["status"] = "rejected"
         data["rejected_by"] = current_user
         data["rejected_at"] = datetime.now().isoformat()
-        
+
         with open(approval_file, 'w') as f:
             json.dump(data, f, indent=2)
-        
+
         print_error(f"已拒绝请求: {request_id} (by {current_user})")
         log_audit("reject", {"request_id": request_id, "approver": current_user})
         return True
@@ -448,9 +486,14 @@ def main():
     # 初始化
     ensure_dirs()
     
-    # 清理过期请求
+    # 清理过期请求（自动 + 手动触发）
     cleanup_expired_requests()
-    
+
+    # 手动触发清理
+    if args.cleanup:
+        print_success("过期请求清理完成")
+        return
+
     # 查看审计日志
     if args.audit_log:
         log_file = LOG_DIR / f"audit_{datetime.now().strftime('%Y%m')}.log"

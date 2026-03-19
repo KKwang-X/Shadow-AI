@@ -4,6 +4,7 @@ QQ Mail Sender - QQ邮箱发送工具
 支持通过QQ邮箱SMTP发送邮件
 """
 
+import json
 import sys
 import os
 import smtplib
@@ -20,7 +21,6 @@ def load_config():
     """加载配置文件"""
     config_path = Path(__file__).parent / "config.json"
     if config_path.exists():
-        import json
         with open(config_path, 'r') as f:
             return json.load(f)
     return {}
@@ -45,29 +45,29 @@ def send_email(to_email, subject, body, sender_email=None, auth_code=None):
         msg['From'] = sender
         msg['To'] = to_email
         msg['Subject'] = subject
-        
+
         # 添加正文
         msg.attach(MIMEText(body, 'plain', 'utf-8'))
-        
+
         # 连接SMTP服务器
         print(f"📧 正在连接 {SMTP_SERVER}...")
         server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
-        server.starttls()  # 启用TLS加密
-        
-        # 登录
-        print(f"🔐 正在登录 {sender}...")
-        server.login(sender, auth)
-        
-        # 发送邮件
-        print(f"📤 正在发送邮件到 {to_email}...")
-        server.send_message(msg)
-        
-        # 关闭连接
-        server.quit()
-        
-        print(f"✅ 邮件发送成功！")
-        return True
-        
+        try:
+            server.starttls()  # 启用TLS加密
+
+            # 登录
+            print(f"🔐 正在登录 {sender}...")
+            server.login(sender, auth)
+
+            # 发送邮件
+            print(f"📤 正在发送邮件到 {to_email}...")
+            server.send_message(msg)
+
+            print(f"✅ 邮件发送成功！")
+            return True
+        finally:
+            server.quit()
+
     except Exception as e:
         print(f"❌ 发送失败: {e}")
         return False

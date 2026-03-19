@@ -27,7 +27,7 @@ export QQMAIL_AUTH_CODE="your-auth-code"
 
 ### 命令行
 ```bash
-python3 qqmail.py send "recipient@example.com" "邮件主题" "邮件正文"
+python3 qqmail.py "recipient@example.com" "邮件主题" "邮件正文"
 ```
 
 ### 在代码中使用

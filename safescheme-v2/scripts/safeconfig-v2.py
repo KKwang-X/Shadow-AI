@@ -8,11 +8,12 @@ import argparse
 import json
 import os
 import shutil
-import subprocess
 import sys
+import time
 import uuid
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 # 导入 safescheme
 sys.path.insert(0, str(Path(__file__).parent))
@@ -162,28 +163,47 @@ class SafeConfigV2:
         
         return request_id
     
-    def phase5_wait_for_approval(self, request_id: str) -> bool:
-        """Phase 5: 等待审批"""
+    def phase5_wait_for_approval(self, request_id: str, timeout: int = 1800) -> bool:
+        """Phase 5: 等待审批（轮询，最多30分钟）"""
         print("\n📋 Phase 5: 等待审批")
         print("-" * 70)
-        print(f"⏳ 等待审批人批准...")
+        print(f"⏳ 等待审批人批准... (最多 {timeout // 60} 分钟)")
         print(f"🆔 请求ID: {request_id}")
-        print(f"\n请执行批准命令，或按 Ctrl+C 取消")
-        
-        # 这里简化处理，实际应该轮询或通知
-        print("\n⚠️  简化模式: 请手动批准")
-        print(f"命令: python3 safeconfig-v2.py --approve {request_id}")
-        
-        # 检查是否已批准
+        print(f"\n批准命令: python3 safeconfig-v2.py --approve {request_id}")
+        print(f"拒绝命令: python3 safeconfig-v2.py --reject {request_id}")
+        print("按 Ctrl+C 可取消等待\n")
+
         approval_file = self.approval_dir / f"{request_id}.json"
-        if approval_file.exists():
-            with open(approval_file, 'r') as f:
-                data = json.load(f)
-            if data.get("status") == "approved":
-                print("\n✅ Phase 5 通过: 已批准")
-                return True
-        
-        print("\n⏸️  Phase 5 暂停: 等待批准")
+        start_time = time.time()
+        check_interval = 5
+
+        try:
+            while time.time() - start_time < timeout:
+                if approval_file.exists():
+                    with open(approval_file, 'r') as f:
+                        data = json.load(f)
+
+                    status = data.get("status")
+                    if status == "approved":
+                        approver = data.get("approved_by", "unknown")
+                        print(f"\n✅ Phase 5 通过: 已批准 (by {approver})")
+                        return True
+                    elif status == "rejected":
+                        approver = data.get("rejected_by", "unknown")
+                        print(f"\n❌ Phase 5 失败: 已拒绝 (by {approver})")
+                        return False
+
+                remaining = int(timeout - (time.time() - start_time))
+                if remaining % 60 == 0 and remaining > 0:
+                    print(f"   剩余等待时间: {remaining // 60} 分钟...")
+
+                time.sleep(check_interval)
+
+        except KeyboardInterrupt:
+            print("\n⚠️  用户取消等待")
+            return False
+
+        print("\n❌ Phase 5 失败: 审批超时")
         return False
     
     def phase6_virtual_test(self, filepath: str, changes: str) -> bool:
@@ -230,19 +250,24 @@ class SafeConfigV2:
             return False
     
     def phase7_apply_changes(self, filepath: str, changes: str) -> bool:
-        """Phase 7: 执行变更"""
+        """Phase 7: 执行变更（交互式，等待用户手动完成）"""
         print("\n📋 Phase 7: 执行变更")
         print("-" * 70)
-        
         print(f"📁 目标文件: {filepath}")
-        print(f"📝 变更: {changes}")
-        
-        # 这里应该执行实际的变更
-        # 简化处理，实际变更由调用方提供
-        print("\n⚠️  简化模式: 请手动执行变更")
-        print("变更完成后，系统将自动验证")
-        
-        print("\n✅ Phase 7 完成")
+        print(f"📝 变更说明: {changes}")
+        print()
+        print("请现在手动修改目标文件，例如:")
+        print(f"  nano {filepath}")
+        print(f"  vi {filepath}")
+        print()
+
+        try:
+            input("✏️  修改完成后按 Enter 继续（Ctrl+C 取消）...")
+        except KeyboardInterrupt:
+            print("\n⚠️  用户取消变更")
+            return False
+
+        print("\n✅ Phase 7 完成：用户确认变更已应用")
         return True
     
     def phase8_verify_result(self, filepath: str) -> bool:
@@ -283,25 +308,72 @@ class SafeConfigV2:
         
         print(f"✅ 审计日志已记录: {log_file}")
     
-    def approve(self, request_id: str):
-        """批准请求"""
+    def _check_approver_permission(self) -> bool:
+        """检查当前用户是否有审批权限"""
+        current_user = os.getenv("USER") or os.getenv("USERNAME") or ""
+        authorized = ["admin", "kk"]  # 与 safeconfig.py 保持一致，可按需配置
+        return current_user in authorized or os.getuid() == 0
+
+    def approve(self, request_id: str) -> bool:
+        """批准请求（带身份验证）"""
+        current_user = os.getenv("USER") or os.getenv("USERNAME") or f"uid_{os.getuid()}"
+
+        if not self._check_approver_permission():
+            print(f"❌ 用户 {current_user} 无审批权限")
+            return False
+
         approval_file = self.approval_dir / f"{request_id}.json"
-        
         if not approval_file.exists():
             print(f"❌ 请求不存在: {request_id}")
             return False
-        
+
         with open(approval_file, 'r') as f:
             data = json.load(f)
-        
+
+        # 检查是否已处理
+        if data.get("status") in ["approved", "rejected"]:
+            print(f"❌ 请求已处理（状态: {data['status']}），不可重复操作")
+            return False
+
         data["status"] = "approved"
         data["approved_at"] = datetime.now().isoformat()
-        data["approved_by"] = os.getenv("USER") or "unknown"
-        
+        data["approved_by"] = current_user
+
         with open(approval_file, 'w') as f:
             json.dump(data, f, indent=2)
-        
-        print(f"✅ 已批准请求: {request_id}")
+
+        print(f"✅ 已批准请求: {request_id} (by {current_user})")
+        return True
+
+    def reject(self, request_id: str) -> bool:
+        """拒绝请求（带身份验证）"""
+        current_user = os.getenv("USER") or os.getenv("USERNAME") or f"uid_{os.getuid()}"
+
+        if not self._check_approver_permission():
+            print(f"❌ 用户 {current_user} 无审批权限")
+            return False
+
+        approval_file = self.approval_dir / f"{request_id}.json"
+        if not approval_file.exists():
+            print(f"❌ 请求不存在: {request_id}")
+            return False
+
+        with open(approval_file, 'r') as f:
+            data = json.load(f)
+
+        # 检查是否已处理
+        if data.get("status") in ["approved", "rejected"]:
+            print(f"❌ 请求已处理（状态: {data['status']}），不可重复操作")
+            return False
+
+        data["status"] = "rejected"
+        data["rejected_at"] = datetime.now().isoformat()
+        data["rejected_by"] = current_user
+
+        with open(approval_file, 'w') as f:
+            json.dump(data, f, indent=2)
+
+        print(f"✅ 已拒绝请求: {request_id} (by {current_user})")
         return True
 
 
@@ -311,13 +383,16 @@ def main():
     parser.add_argument("--approver", help="审批人 (格式: telegram:user_id)")
     parser.add_argument("--changes", help="变更说明")
     parser.add_argument("--approve", help="批准请求ID")
-    
+    parser.add_argument("--reject", help="拒绝请求ID")
+
     args = parser.parse_args()
-    
+
     sc = SafeConfigV2()
-    
+
     if args.approve:
-        sc.approve(args.approve)
+        sys.exit(0 if sc.approve(args.approve) else 1)
+    elif args.reject:
+        sys.exit(0 if sc.reject(args.reject) else 1)
     elif args.file and args.approver and args.changes:
         success = sc.run_full_flow(args.file, args.approver, args.changes)
         sys.exit(0 if success else 1)

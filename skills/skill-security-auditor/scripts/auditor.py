@@ -21,11 +21,15 @@ class SkillAuditor:
         """审计所有 skill"""
         print("🔍 开始安全审计...")
         print("=" * 60)
-        
+
+        if not self.skills_dir.exists():
+            print(f"❌ Skill 目录不存在: {self.skills_dir}")
+            return self.issues
+
         for skill_path in self.skills_dir.iterdir():
             if skill_path.is_dir() and not skill_path.name.startswith('.'):
                 self._audit_skill(skill_path)
-        
+
         return self.issues
     
     def _audit_skill(self, skill_path: Path):
@@ -91,8 +95,8 @@ class SkillAuditor:
                     self._add_issue(skill_name, level, f"{file_path.name}: {description}")
         
         except Exception as e:
-            pass
-    
+            self._add_issue(skill_name, "error", f"无法读取 {file_path.name}: {e}")
+
     def _add_issue(self, skill: str, level: str, description: str):
         """添加问题记录"""
         issue = {
