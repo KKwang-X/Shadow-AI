@@ -12,176 +12,226 @@
 
 ---
 
-## 🎯 About Me
+A collection of production-hardened tools and skills for **safe AI agent operations** — born from real incidents where autonomous agents misconfigured production systems.
 
-**OpenClaw Contributor** | AI Agent Practitioner | Production Safety Advocate
+> 💡 *"I've stepped on many landmines so you don't have to."*
+> — KK, OpenClaw Contributor
 
-I'm KK, a business analyst at a major internet company in Beijing. Through extensive practice with AI agents, I've learned that **safety must come first when models have exec permissions**.
+---
 
-> 💡 "I've stepped on many landmines so you don't have to."
+## 🛡️ The Problem This Solves
 
-This repository documents my journey building AI agent systems, with special focus on **safe configuration management** and **production deployment best practices**.
+Modern AI agents (OpenClaw, Claude Code, etc.) can execute shell commands and edit files. This is powerful but dangerous:
+
+- Models **hallucinate** non-existent CLI parameters
+- Agents write to critical configs **without backup or approval**
+- A single bad edit can take down a production service — with no rollback
+
+**SafeConfig** and its ecosystem enforce a safety layer that agents cannot bypass.
+
+---
+
+## 🗂️ Repository Structure
+
+```
+Shadow-AI/
+├── safedeploy.py              # One-command safe deployment
+├── safescheme-v2/             # Full 9-phase config change workflow
+└── skills/
+    ├── safeconfig/            # Core config guard (v1) + PreToolUse Hook
+    ├── qqmail-sender/         # QQ Mail SMTP sender
+    └── skill-security-auditor/ # Automated skill security audit
+```
 
 ---
 
 ## 🚀 Projects
 
-### SafeDeploy 🔧 (NEW - 新手必用！)
-**踩过无数坑换来的 OpenClaw 安全部署工具**
+### 🔒 SafeConfig v1 — Config Guard
 
-> 💡 "曾因 `--daemon` 参数崩溃 3 次，曾因未备份配置丢失重要设置... 这个工具就是为避免这些血泪教训而生。"
+Intercepts **any** attempt to edit critical config files before it happens.
 
-**为什么新手必用：**
-- ✅ 部署前自动验证所有配置
-- ✅ 发现 bug 自动修复（如移除无效参数）
-- ✅ 高风险操作需审批人确认
-- ✅ 自动备份，失败可回滚
-- ✅ 一键部署，无需手动检查
+**How it works:**
 
-**快速开始：**
-```bash
-# 仅检查配置
-python3 safedeploy.py check
+The `pre-tool-hook.py` registers as a Claude Code `PreToolUse` hook. Every time the agent calls `Edit`, `Write`, or `Bash`, the hook checks whether the target file is a critical config. If it is, the operation is **blocked at the system level** — the agent cannot proceed without going through the approval workflow.
 
-# 检查并自动修复
-python3 safedeploy.py fix
-
-# 完整部署（推荐）
-python3 safedeploy.py deploy --approver telegram:admin
+```
+Agent calls Edit ~/.openclaw/openclaw.json
+        ↓
+PreToolUse Hook fires (before execution)
+        ↓
+Critical config detected → exit 2 → Tool BLOCKED
+        ↓
+Agent must complete safeconfig flow first
 ```
 
-**[📖 完整文档](SAFEDEPLOY.md)**
+**Quick Start:**
+```bash
+# Check if a file is a critical config
+python3 skills/safeconfig/safeconfig.py --check ~/.openclaw/openclaw.json
+
+# Backup + approval workflow
+python3 skills/safeconfig/safeconfig.py \
+  --backup ~/.openclaw/openclaw.json \
+  --approver telegram:<your_id> \
+  --changes "Update API key"
+
+# Approve a pending request (run in a separate terminal)
+python3 skills/safeconfig/safeconfig.py --approve <request_id>
+```
+
+**Hook installation** (one-time setup):
+
+Add to `~/.claude/settings.json`:
+```json
+{
+  "hooks": {
+    "PreToolUse": [{
+      "matcher": "Edit|Write|Bash",
+      "hooks": [{
+        "type": "command",
+        "command": "python3 /path/to/Shadow-AI/skills/safeconfig/pre-tool-hook.py",
+        "timeout": 10
+      }]
+    }]
+  }
+}
+```
+
+> The project `.claude/settings.json` ships with this hook pre-configured.
 
 ---
 
-### Shadow-AI (Original)
-An AI engine integrating **GKD frontend controller** with **Large Language Models** for Android device automation via voice/text commands.
+### 🔒 SafeConfig v2 — 9-Phase Workflow
 
-### SafeConfig ⭐ (Featured Skill)
-A safety-first skill for OpenClaw/Codex that enforces strict security checks before modifying critical configurations.
+A complete, structured change management process for high-stakes config changes.
 
-**Why This Matters:**
-When AI agents have `exec` permissions, a single hallucinated parameter can bring down production services. I learned this the hard way when `--daemon` (a non-existent parameter) crashed my OpenClaw gateway repeatedly.
-
-**Key Features:**
-- ✅ Validates parameter existence before modification
-- ✅ Auto-backup with timestamps  
-- ✅ Mandatory user confirmation
-- ✅ Post-modification service verification
-- ✅ Supports openclaw.json, systemd, nginx, ssh configs
-
-**Quick Start:**
-```bash
-python3 skills/safeconfig/safeconfig.py --check ~/.openclaw/openclaw.json
-python3 skills/safeconfig/safeconfig.py --backup /etc/systemd/system/myapp.service
+```
+Phase 1 → Pre-check (16 Scheme validations)
+Phase 2 → Change analysis
+Phase 3 → Triple backup
+Phase 4 → Approval request
+Phase 5 → Wait for approval (polls every 5s, 30-min timeout)
+Phase 6 → Virtual environment test
+Phase 7 → Apply change (interactive confirmation)
+Phase 8 → Verify result
+Phase 9 → Audit log
 ```
 
-### QQMail Sender 🇨🇳 (国内用户推荐)
-**国内 OpenClaw 用户最便捷的邮件方案** - 无需 Gmail/Outlook，直接使用 QQ 邮箱，国内网络畅通无阻。
-
-**Why This Matters:**
-Gmail 在国内访问困难，Outlook 偶发连接问题。QQ 邮箱是国内最稳定的 SMTP 服务，人人有号，开箱即用。
-
-**Key Features:**
-- ✅ 国内网络畅通，无需翻墙
-- ✅ QQ 号即邮箱，无需额外注册
-- ✅ 支持系统告警、日报等自动化邮件
-- ✅ 配置简单，授权码一键获取
-
 **Quick Start:**
 ```bash
-# 配置邮箱和授权码
+python3 safescheme-v2/scripts/safeconfig-v2.py \
+  --file ~/.openclaw/openclaw.json \
+  --approver telegram:<your_id> \
+  --changes "Rotate gateway auth token"
+```
+
+---
+
+### 🚀 SafeDeploy — One-Command Safe Deployment
+
+Validates, fixes, backs up, and deploys in one shot.
+
+```bash
+# Check only (no changes)
+python3 safedeploy.py check
+
+# Check and auto-fix issues
+python3 safedeploy.py fix
+
+# Full deployment with approval workflow
+python3 safedeploy.py deploy --approver telegram:<your_id> --changes "Update config"
+```
+
+**Auto-fixes:**
+
+| Issue | Fix |
+|-------|-----|
+| Invalid flags (e.g. `--daemon`) | Removed automatically |
+| JSON trailing commas | Cleaned up |
+| Missing required fields | Default values injected |
+
+📖 [Full SafeDeploy documentation](SAFEDEPLOY.md)
+
+---
+
+### 🔍 Skill Security Auditor
+
+Scans all installed skills for security issues: hardcoded secrets, dangerous shell patterns, missing input validation, overly broad permissions.
+
+```bash
+python3 skills/skill-security-auditor/scripts/auditor.py
+```
+
+---
+
+### 📧 QQMail Sender
+
+SMTP email sender using QQ Mail — the most reliable option for users in mainland China (no VPN required).
+
+```bash
 export QQMAIL_EMAIL="your-qq@qq.com"
 export QQMAIL_AUTH_CODE="your-auth-code"
 
-# 发送邮件
-python3 skills/qqmail-sender/qqmail.py "recipient@example.com" "主题" "正文"
+python3 skills/qqmail-sender/qqmail.py "recipient@example.com" "Subject" "Body"
 ```
 
-**详细配置指南：** [skills/qqmail-sender/README.md](skills/qqmail-sender/README.md)
+📖 [Configuration guide](skills/qqmail-sender/README.md)
 
 ---
 
-## 🛡️ Safety First Philosophy
+## 🛠️ Skills Summary
 
-### The Problem
-Modern AI agents (OpenClaw, Claude Code, etc.) can execute shell commands. This is powerful but dangerous:
-- Models can hallucinate non-existent parameters
-- Config syntax errors can crash services
-- No built-in safety guardrails
-
-### The Solution
-**SafeConfig** implements a 4-step safety workflow:
-
-1. **Validate** — Check `--help` before using any parameter
-2. **Backup** — Always backup before modification
-3. **Confirm** — Show changes, get explicit user approval
-4. **Verify** — Check service status after changes
-
-### Real-World Impact
-| Before SafeConfig | After SafeConfig |
-|------------------------|----------------------|
-| Service crashed 3 times in one night | Zero production incidents |
-| `--daemon` parameter hallucination | All parameters validated |
-| No rollback capability | Automatic timestamped backups |
-| Silent failures | Explicit confirmation required |
+| Skill | Purpose | Status |
+|-------|---------|--------|
+| [safeconfig](skills/safeconfig/) | Config guard + PreToolUse hook | ✅ Production |
+| [safescheme-v2](safescheme-v2/) | 9-phase change workflow | ✅ Production |
+| [skill-security-auditor](skills/skill-security-auditor/) | Skill security scanning | ✅ Production |
+| [qqmail-sender](skills/qqmail-sender/) | QQ Mail SMTP sender | ✅ Production |
 
 ---
 
-## 📚 Lessons Learned (The Hard Way)
+## 📚 Lessons Learned
 
-### Lesson 1: Never Trust Model-Generated Parameters
+### Lesson 1: Never trust model-generated parameters
 ```bash
-# ❌ Wrong: Model suggested this
+# ❌ Model hallucinated this flag
 ExecStart=/path/to/openclaw gateway start --daemon
+# Result: service crash, "unknown option '--daemon'"
 
-# ✅ Correct: After checking --help
+# ✅ Verified via --help
 ExecStart=/path/to/openclaw gateway start
 ```
 
-### Lesson 2: Always Backup Critical Configs
-```bash
-# Config Guardian auto-backup
+### Lesson 2: Always backup before any change
+```
 ~/.config-backups/openclaw.service.20250303_234439.bak
 ```
 
-### Lesson 3: Verify After Every Change
+### Lesson 3: Verify service status after every change
 ```bash
-sudo systemctl daemon-reload
-sudo systemctl restart service
-sudo systemctl status service --no-pager  # Must check!
+sudo systemctl daemon-reload && sudo systemctl restart openclaw
+sudo systemctl status openclaw --no-pager
 ```
-
----
-
-## 🛠️ Skills Collection
-
-| Skill | Description | Status |
-|-------|-------------|--------|
-| [SafeConfig](skills/safeconfig/) | Safe configuration management | ✅ Production Ready |
-| [QQMail Sender](skills/qqmail-sender/) | QQ邮箱发送工具（国内推荐） | ✅ Ready |
-| More coming... | | 🚧 In Development |
 
 ---
 
 ## 🤝 Contributing
 
-Contributions welcome! Especially:
-- Additional safety checks
-- Support for more config formats
-- Integration with other AI agent platforms
+Contributions welcome, especially:
+- New safety checks and config format support
+- Integration with other AI agent platforms (Cursor, Windsurf, etc.)
+- Additional skill security audit rules
 
 ---
 
 ## 📄 License
 
-MIT License - See [LICENSE](LICENSE) for details.
+MIT — see [LICENSE](LICENSE)
 
 ---
 
 <p align="center">
-  Built with ❤️ and lots of ☕ by <a href="https://github.com/KKwang-X">KK</a>
-</p>
-<p align="center">
-  <sub>OpenClash Contributor • Safety Advocate • AI Agent Practitioner</sub>
+  Built with ❤️ and hard-won experience by <a href="https://github.com/KKwang-X">KK</a><br>
+  <sub>OpenClaw Contributor · Safety Advocate · AI Agent Practitioner</sub>
 </p>
