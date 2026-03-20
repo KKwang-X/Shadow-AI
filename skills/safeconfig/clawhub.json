@@ -1,0 +1,51 @@
+{
+  "name": "safeconfig",
+  "version": "1.2.0",
+  "description": "AI Agent 配置守卫。通过 Claude Code PreToolUse Hook 在系统层面拦截关键配置文件的修改，强制执行备份+审批+验证安全流程，防止 Agent 在无人监督下写坏生产配置。",
+  "author": "KKwang-X",
+  "license": "MIT",
+  "homepage": "https://github.com/KKwang-X/Shadow-AI/tree/main/skills/safeconfig",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/KKwang-X/Shadow-AI.git",
+    "directory": "skills/safeconfig"
+  },
+  "keywords": [
+    "security",
+    "config-guard",
+    "pretooluse-hook",
+    "backup",
+    "approval",
+    "rollback",
+    "openclaw",
+    "claude-code"
+  ],
+  "categories": ["security", "devops", "hooks"],
+  "requirements": {
+    "openclaw": ">=2026.3.0",
+    "python": ">=3.8"
+  },
+  "installation": {
+    "type": "git",
+    "url": "https://github.com/KKwang-X/Shadow-AI.git",
+    "path": "skills/safeconfig"
+  },
+  "entry": {
+    "cli": "safeconfig.py",
+    "hook": "pre-tool-hook.py"
+  },
+  "hook": {
+    "type": "PreToolUse",
+    "matcher": "Edit|Write|Bash",
+    "command": "python3 {skill_path}/pre-tool-hook.py",
+    "timeout": 10
+  },
+  "documentation": {
+    "readme": "README.md",
+    "skill": "SKILL.md"
+  },
+  "support": {
+    "issues": "https://github.com/KKwang-X/Shadow-AI/issues",
+    "discussions": "https://github.com/KKwang-X/Shadow-AI/discussions"
+  }
+}
