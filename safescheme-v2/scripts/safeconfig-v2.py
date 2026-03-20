@@ -15,9 +15,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-# 导入 safescheme
+# 导入 safescheme 和 rollback_manager
 sys.path.insert(0, str(Path(__file__).parent))
 from safescheme import SafeSchemeValidator
+from rollback_manager import RollbackManager
 
 
 class SafeConfigV2:
@@ -29,6 +30,7 @@ class SafeConfigV2:
         self.approval_dir = Path("~/.safeconfig/approvals").expanduser()
         self.backup_dir = Path("~/.config-backups").expanduser()
         self.log_dir = Path("~/.safeconfig/logs").expanduser()
+        self.new_content_path: Optional[Path] = None
         self.ensure_dirs()
         
     def ensure_dirs(self):
@@ -37,42 +39,45 @@ class SafeConfigV2:
             d.mkdir(parents=True, exist_ok=True)
             os.chmod(d, 0o700)
     
-    def run_full_flow(self, filepath: str, approver: str, changes: str):
+    def run_full_flow(self, filepath: str, approver: str, changes: str,
+                      new_content_path: Optional[Path] = None):
         """执行完整 SafeConfig 流程"""
         print(f"🔐 SafeConfig v{self.VERSION} - 完整流程")
         print("=" * 70)
-        
+
+        self.new_content_path = new_content_path
+
         # Phase 1: 预审查
         if not self.phase1_pre_check(filepath):
             return False
-        
+
         # Phase 2: 变更分析
         self.phase2_analyze_changes(filepath, changes)
-        
+
         # Phase 3: 创建备份
         backup_path = self.phase3_create_backup(filepath)
         if not backup_path:
             return False
-        
+
         # Phase 4: 生成审批请求
         request_id = self.phase4_create_approval(filepath, approver, changes, backup_path)
-        
+
         # Phase 5: 等待审批
         if not self.phase5_wait_for_approval(request_id):
             return False
-        
+
         # Phase 6: 虚拟环境测试
         if not self.phase6_virtual_test(filepath, changes):
             return False
-        
+
         # Phase 7: 执行变更
         if not self.phase7_apply_changes(filepath, changes):
             return False
-        
+
         # Phase 8: 验证结果
-        if not self.phase8_verify_result(filepath):
+        if not self.phase8_verify_result(filepath, backup_path):
             return False
-        
+
         # Phase 9: 审计日志
         self.phase9_audit_log(request_id, filepath, changes, approver, backup_path)
         
@@ -82,17 +87,17 @@ class SafeConfigV2:
         return True
     
     def phase1_pre_check(self, filepath: str) -> bool:
-        """Phase 1: 预审查"""
-        print("\n📋 Phase 1: 预审查 (Scheme + Status)")
+        """Phase 1: 预审查（仅 Scheme 结构，不检查服务状态）"""
+        print("\n📋 Phase 1: 预审查 (Scheme 结构校验)")
         print("-" * 70)
-        
+
         validator = SafeSchemeValidator(filepath)
-        success = validator.validate()
-        
+        success = validator.validate_scheme_only()
+
         if not success:
-            print("\n❌ Phase 1 失败: 预审查未通过")
+            print("\n❌ Phase 1 失败: 当前配置不符合 Scheme 要求")
             return False
-        
+
         print("\n✅ Phase 1 通过")
         return True
     
@@ -207,80 +212,103 @@ class SafeConfigV2:
         return False
     
     def phase6_virtual_test(self, filepath: str, changes: str) -> bool:
-        """Phase 6: 虚拟环境测试"""
+        """Phase 6: 虚拟环境测试（验证拟议内容的 Scheme 合规性）"""
         print("\n📋 Phase 6: 虚拟环境测试")
         print("-" * 70)
-        
+
+        src = Path(filepath).expanduser()
         test_env = Path("~/.openclaw.test").expanduser()
-        
+        test_config = test_env / src.name
+
         try:
             # 1. 创建测试环境
             print("1. 创建测试环境...")
             if test_env.exists():
                 shutil.rmtree(test_env)
-            shutil.copytree(Path(filepath).expanduser().parent, test_env)
+            shutil.copytree(src.parent, test_env)
             print("   ✅ 测试环境创建完成")
-            
-            # 2. 应用变更到测试环境
+
+            # 2. 将拟议内容写入测试环境
             print("2. 应用变更到测试环境...")
-            # 这里简化，实际应该应用具体变更
-            print("   ✅ 变更已应用")
-            
-            # 3. 验证配置
+            if self.new_content_path and self.new_content_path.exists():
+                shutil.copy2(self.new_content_path, test_config)
+                print(f"   ✅ 已写入拟议内容: {self.new_content_path}")
+            else:
+                # 无拟议文件时只验证原始内容（兜底）
+                print("   ⚠️  未提供 --new-content-file，验证当前文件内容")
+
+            # 3. 验证测试环境配置（Scheme-only，不检查服务状态）
             print("3. 验证测试环境配置...")
-            validator = SafeSchemeValidator(str(test_env / "openclaw.json"))
-            if not validator.validate():
-                print("   ❌ 测试环境验证失败")
+            validator = SafeSchemeValidator(str(test_config))
+            if not validator.validate_scheme_only():
+                print("   ❌ 测试环境 Scheme 验证失败，拒绝应用变更")
                 return False
             print("   ✅ 测试环境验证通过")
-            
+
             # 4. 清理测试环境
             print("4. 清理测试环境...")
             shutil.rmtree(test_env)
             print("   ✅ 测试环境已清理")
-            
+
             print("\n✅ Phase 6 通过: 虚拟环境测试成功")
             return True
-            
+
         except Exception as e:
             print(f"\n❌ Phase 6 失败: {e}")
-            # 清理测试环境
             if test_env.exists():
                 shutil.rmtree(test_env)
             return False
     
     def phase7_apply_changes(self, filepath: str, changes: str) -> bool:
-        """Phase 7: 执行变更（交互式，等待用户手动完成）"""
+        """Phase 7: 执行变更（自动写入或交互式确认）"""
         print("\n📋 Phase 7: 执行变更")
         print("-" * 70)
         print(f"📁 目标文件: {filepath}")
         print(f"📝 变更说明: {changes}")
         print()
-        print("请现在手动修改目标文件，例如:")
-        print(f"  nano {filepath}")
-        print(f"  vi {filepath}")
-        print()
 
-        try:
-            input("✏️  修改完成后按 Enter 继续（Ctrl+C 取消）...")
-        except KeyboardInterrupt:
-            print("\n⚠️  用户取消变更")
-            return False
+        dst = Path(filepath).expanduser()
 
-        print("\n✅ Phase 7 完成：用户确认变更已应用")
-        return True
+        if self.new_content_path and self.new_content_path.exists():
+            # 自动模式：直接写入拟议内容（已经过 Phase 6 验证）
+            try:
+                shutil.copy2(self.new_content_path, dst)
+                print(f"✅ Phase 7 完成：已自动写入 {dst}")
+                return True
+            except Exception as e:
+                print(f"❌ Phase 7 失败：写入出错 — {e}")
+                return False
+        else:
+            # 交互式模式：等待用户手动修改后确认
+            print("请现在手动修改目标文件，例如:")
+            print(f"  nano {filepath}")
+            print(f"  vi {filepath}")
+            print()
+            try:
+                input("✏️  修改完成后按 Enter 继续（Ctrl+C 取消）...")
+            except KeyboardInterrupt:
+                print("\n⚠️  用户取消变更")
+                return False
+            print("\n✅ Phase 7 完成：用户确认变更已应用")
+            return True
     
-    def phase8_verify_result(self, filepath: str) -> bool:
-        """Phase 8: 验证结果"""
+    def phase8_verify_result(self, filepath: str, backup_path: Optional[Path] = None) -> bool:
+        """Phase 8: 验证结果，失败时自动回滚"""
         print("\n📋 Phase 8: 验证结果")
         print("-" * 70)
-        
-        # 重新运行预审查
+
         validator = SafeSchemeValidator(filepath)
-        if not validator.validate():
-            print("\n❌ Phase 8 失败: 验证未通过")
+        if not validator.validate_scheme_only():
+            print("\n❌ Phase 8 失败: 变更后 Scheme 验证未通过")
+            if backup_path:
+                print("⚠️  启动自动回滚...")
+                rm = RollbackManager(str(self.backup_dir))
+                if rm.rollback(filepath, str(backup_path)):
+                    print("✅ 已回滚到变更前状态")
+                else:
+                    print("❌ 自动回滚失败！请手动检查配置")
             return False
-        
+
         print("\n✅ Phase 8 通过: 验证成功")
         return True
     
@@ -382,6 +410,8 @@ def main():
     parser.add_argument("--file", help="要修改的配置文件")
     parser.add_argument("--approver", help="审批人 (格式: telegram:user_id)")
     parser.add_argument("--changes", help="变更说明")
+    parser.add_argument("--new-content-file", dest="new_content_file",
+                        help="包含拟议新内容的临时文件路径（由 pre-tool-hook 生成）")
     parser.add_argument("--approve", help="批准请求ID")
     parser.add_argument("--reject", help="拒绝请求ID")
 
@@ -394,7 +424,8 @@ def main():
     elif args.reject:
         sys.exit(0 if sc.reject(args.reject) else 1)
     elif args.file and args.approver and args.changes:
-        success = sc.run_full_flow(args.file, args.approver, args.changes)
+        new_content_path = Path(args.new_content_file) if args.new_content_file else None
+        success = sc.run_full_flow(args.file, args.approver, args.changes, new_content_path)
         sys.exit(0 if success else 1)
     else:
         parser.print_help()

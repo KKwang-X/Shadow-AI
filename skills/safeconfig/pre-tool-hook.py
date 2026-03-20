@@ -23,6 +23,7 @@ import json
 import os
 import re
 import sys
+import tempfile
 from pathlib import Path
 
 # ──────────────────────────────────────────────
@@ -112,10 +113,60 @@ def is_bypass_enabled() -> bool:
 # 生成拦截消息
 # ──────────────────────────────────────────────
 
-def build_block_message(target_path: str, tool_name: str) -> str:
+def capture_proposed_content(tool_name: str, tool_input: dict, target_path: str) -> str | None:
+    """
+    从 Edit/Write 工具输入中提取拟议新内容，写入临时文件并返回路径。
+    Bash 工具无法可靠提取内容，返回 None。
+    """
+    content: str | None = None
+
+    if tool_name == "Write":
+        content = tool_input.get("content")
+
+    elif tool_name == "Edit":
+        # Edit 工具提供 old_string + new_string，我们需要读原文件并做替换
+        file_path = tool_input.get("file_path", "")
+        old_string = tool_input.get("old_string", "")
+        new_string = tool_input.get("new_string", "")
+        replace_all = tool_input.get("replace_all", False)
+        try:
+            with open(Path(file_path).expanduser(), "r", encoding="utf-8") as f:
+                original = f.read()
+            if replace_all:
+                content = original.replace(old_string, new_string)
+            else:
+                content = original.replace(old_string, new_string, 1)
+        except Exception:
+            content = None
+
+    if content is None:
+        return None
+
+    try:
+        safeconfig_dir = Path("~/.safeconfig").expanduser()
+        safeconfig_dir.mkdir(parents=True, exist_ok=True)
+        tmp = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", prefix="safeconfig_proposed_",
+            dir=safeconfig_dir, delete=False, encoding="utf-8"
+        )
+        tmp.write(content)
+        tmp.flush()
+        tmp.close()
+        return tmp.name
+    except Exception:
+        return None
+
+
+def build_block_message(target_path: str, tool_name: str,
+                        proposed_file: str | None = None) -> str:
     repo = os.path.expanduser("~/Shadow-AI")
     safeconfig_v1 = f"{repo}/skills/safeconfig/safeconfig.py"
     safeconfig_v2 = f"{repo}/safescheme-v2/scripts/safeconfig-v2.py"
+
+    new_content_flag = (
+        f" \\\n    --new-content-file {proposed_file}"
+        if proposed_file else ""
+    )
 
     return f"""
 ╔══════════════════════════════════════════════════════════════╗
@@ -139,7 +190,7 @@ def build_block_message(target_path: str, tool_name: str) -> str:
   python3 {safeconfig_v2} \\
     --file {target_path} \\
     --approver telegram:<审批人ID> \\
-    --changes "本次变更说明"
+    --changes "本次变更说明"{new_content_flag}
 
 ─── 紧急 Bypass（须有正当理由）─────────────────────────────
   export SAFECONFIG_BYPASS=1
@@ -171,11 +222,13 @@ def main():
         sys.exit(0)
 
     blocked_path: str | None = None
+    proposed_file: str | None = None
 
     if tool_name in ("Edit", "Write"):
         filepath = tool_input.get("file_path", "")
         if filepath and is_critical_path(filepath):
             blocked_path = filepath
+            proposed_file = capture_proposed_content(tool_name, tool_input, filepath)
 
     elif tool_name == "Bash":
         command = tool_input.get("command", "")
@@ -183,7 +236,7 @@ def main():
             blocked_path = find_critical_bash_target(command)
 
     if blocked_path:
-        print(build_block_message(blocked_path, tool_name))
+        print(build_block_message(blocked_path, tool_name, proposed_file))
         sys.exit(2)
 
     sys.exit(0)

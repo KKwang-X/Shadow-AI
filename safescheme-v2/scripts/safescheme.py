@@ -305,7 +305,13 @@ class SafeSchemeValidator:
             if len(lines) >= 2:
                 parts = lines[1].split()
                 usage = parts[4] if len(parts) > 4 else "unknown"
-                self._add_result("磁盘空间", "passed" if int(usage.rstrip("%")) < 80 else "warning", f"根分区使用: {usage}")
+                try:
+                    usage_level = int(usage.rstrip("%"))
+                    disk_status = "passed" if usage_level < 80 else "warning"
+                except (ValueError, AttributeError):
+                    usage_level, disk_status = 0, "warning"
+                    usage = "unknown"
+                self._add_result("磁盘空间", disk_status, f"根分区使用: {usage}")
             
             # 内存
             result = subprocess.run(
@@ -318,6 +324,41 @@ class SafeSchemeValidator:
         except Exception as e:
             self._add_result("系统资源", "warning", f"检查失败: {e}")
     
+    def validate_scheme_only(self, proposed_config: dict = None) -> bool:
+        """仅验证 Scheme 结构和字段，不检查服务状态/系统资源。
+
+        Args:
+            proposed_config: 可选。直接传入要验证的配置 dict（变更前预验证），
+                             不传则从 config_path 读取当前文件。
+        Returns:
+            True = Scheme 合规；False = 存在阻断性错误。
+        """
+        self.results = []
+
+        if proposed_config is not None:
+            self.config = proposed_config
+        else:
+            self._check_file_exists()
+            self._check_json_syntax()
+
+        if self.config:
+            self._check_scheme_structure()
+            self._check_required_fields()
+            self._check_types()
+            self._check_value_ranges()
+            self._check_dependencies()
+            self._check_sensitive_fields()
+
+        failed  = sum(1 for r in self.results if r.status == "failed")
+        warnings = sum(1 for r in self.results if r.status == "warning")
+        passed  = len(self.results) - failed - warnings
+        print(f"   Scheme 验证: {passed} 通过 / {failed} 失败 / {warnings} 警告")
+        if failed:
+            for r in self.results:
+                if r.status == "failed":
+                    print(f"   ❌ {r.name}: {r.message}")
+        return failed == 0
+
     def _generate_report(self) -> bool:
         """生成最终报告"""
         print("\n" + "=" * 70)
