@@ -1,0 +1,43 @@
+{
+  "name": "qqmail-sender",
+  "version": "1.0.0",
+  "description": "QQ 邮箱发送工具。通过 SMTP 发送邮件——国内网络最稳定的方案，无需翻墙。适用于通知、告警、日报等邮件发送场景。",
+  "author": "KKwang-X",
+  "license": "MIT",
+  "homepage": "https://github.com/KKwang-X/Shadow-AI/tree/main/skills/qqmail-sender",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/KKwang-X/Shadow-AI.git",
+    "directory": "skills/qqmail-sender"
+  },
+  "keywords": [
+    "email",
+    "smtp",
+    "qq-mail",
+    "notification",
+    "alert"
+  ],
+  "categories": ["utilities", "notification", "integration"],
+  "requirements": {
+    "python": ">=3.8"
+  },
+  "installation": {
+    "type": "git",
+    "url": "https://github.com/KKwang-X/Shadow-AI.git",
+    "path": "skills/qqmail-sender"
+  },
+  "entry": {
+    "cli": "qqmail.py"
+  },
+  "config": {
+    "example": "config.json.example"
+  },
+  "documentation": {
+    "readme": "README.md",
+    "skill": "SKILL.md"
+  },
+  "support": {
+    "issues": "https://github.com/KKwang-X/Shadow-AI/issues",
+    "discussions": "https://github.com/KKwang-X/Shadow-AI/discussions"
+  }
+}

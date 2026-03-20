@@ -1,0 +1,41 @@
+{
+  "name": "skill-security-auditor",
+  "version": "1.0.0",
+  "description": "Skill 安全审计工具。扫描所有已安装 Skill 的安全风险：硬编码密钥、危险 shell 命令模式、缺失输入校验、过度权限等。",
+  "author": "KKwang-X",
+  "license": "MIT",
+  "homepage": "https://github.com/KKwang-X/Shadow-AI/tree/main/skills/skill-security-auditor",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/KKwang-X/Shadow-AI.git",
+    "directory": "skills/skill-security-auditor"
+  },
+  "keywords": [
+    "security",
+    "audit",
+    "skill-management",
+    "vulnerability-scanner",
+    "openclaw"
+  ],
+  "categories": ["security", "devops", "utilities"],
+  "requirements": {
+    "openclaw": ">=2026.3.0",
+    "python": ">=3.8"
+  },
+  "installation": {
+    "type": "git",
+    "url": "https://github.com/KKwang-X/Shadow-AI.git",
+    "path": "skills/skill-security-auditor"
+  },
+  "entry": {
+    "cli": "scripts/auditor.py"
+  },
+  "documentation": {
+    "readme": "README.md",
+    "skill": "SKILL.md"
+  },
+  "support": {
+    "issues": "https://github.com/KKwang-X/Shadow-AI/issues",
+    "discussions": "https://github.com/KKwang-X/Shadow-AI/discussions"
+  }
+}
